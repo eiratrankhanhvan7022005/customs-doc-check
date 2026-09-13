@@ -2308,162 +2308,340 @@ def build_customs_data(documents):
 # 20. STREAMLIT UI
 # =========================================================
 
-st.title(
-    "📄 Customs Document Check"
-)
+# ---------------------------------------------------------
+# SESSION STATE
+# ---------------------------------------------------------
 
-st.caption(
-    "Tự động đọc chứng từ PDF → trích xuất dữ liệu → kiểm tra chéo → hỗ trợ chuẩn bị thông tin khai báo hải quan."
-)
+if "documents_data" not in st.session_state:
+    st.session_state.documents_data = {}
 
-st.info(
-    "Lưu ý: Đây là công cụ demo hỗ trợ kiểm tra chứng từ. "
-    "Hệ thống không trực tiếp khai hoặc gửi tờ khai lên VNACCS/VCIS."
+if "processed_files" not in st.session_state:
+    st.session_state.processed_files = []
+
+if "file_results" not in st.session_state:
+    st.session_state.file_results = []
+
+
+documents = st.session_state.documents_data
+
+
+# =========================================================
+# 20.1 CUSTOM CSS
+# =========================================================
+
+st.markdown(
+    """
+    <style>
+
+    /* ==============================
+       GLOBAL
+       ============================== */
+
+    .block-container {
+        max-width: 1450px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+
+    h1, h2, h3 {
+        letter-spacing: -0.3px;
+    }
+
+    /* ==============================
+       TOP HEADER
+       ============================== */
+
+    .app-title {
+        font-size: 30px;
+        font-weight: 750;
+        margin-bottom: 2px;
+    }
+
+    .app-subtitle {
+        color: #64748b;
+        font-size: 15px;
+        margin-bottom: 20px;
+    }
+
+    /* ==============================
+       SECTION LABEL
+       ============================== */
+
+    .section-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 5px;
+    }
+
+    /* ==============================
+       STATUS
+       ============================== */
+
+    .status-box {
+        border: 1px solid #dbe4ee;
+        border-radius: 10px;
+        padding: 13px 16px;
+        background: #f8fafc;
+        margin-bottom: 18px;
+    }
+
+    .status-title {
+        font-weight: 650;
+        font-size: 14px;
+        color: #1e293b;
+    }
+
+    .status-text {
+        font-size: 13px;
+        color: #64748b;
+        margin-top: 3px;
+    }
+
+    /* ==============================
+       DOCUMENT CARD
+       ============================== */
+
+    .doc-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e293b;
+    }
+
+    .doc-meta {
+        font-size: 13px;
+        color: #64748b;
+        margin-top: 3px;
+    }
+
+    /* ==============================
+       TABLE HEADER
+       ============================== */
+
+    .table-note {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 5px;
+    }
+
+    /* ==============================
+       FOOTER
+       ============================== */
+
+    .footer-note {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 12px;
+        padding-top: 12px;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 
 # =========================================================
-# UPLOAD
+# 20.2 HEADER
 # =========================================================
 
-uploaded_files = st.file_uploader(
-    "📄 Tải lên bộ chứng từ PDF",
-    type=["pdf"],
-    accept_multiple_files=True
+st.markdown(
+    '<div class="app-title">Customs Document Check</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="app-subtitle">'
+    'Kiểm soát bộ chứng từ xuất nhập khẩu trước khi khai báo hải quan'
+    '</div>',
+    unsafe_allow_html=True
 )
 
 
-if uploaded_files:
+# =========================================================
+# 20.3 SYSTEM STATUS
+# =========================================================
 
-    st.subheader("📁 Danh sách chứng từ")
+if documents:
 
-    for file in uploaded_files:
+    st.success(
+        f"Hệ thống đang quản lý {len(documents)} loại chứng từ. "
+        "Bạn có thể tiếp tục kiểm tra chéo dữ liệu bên dưới.",
+        icon="✓"
+    )
+
+else:
+
+    st.info(
+        "Chưa có bộ chứng từ. Hãy tải các file PDF lên để bắt đầu kiểm tra.",
+        icon="i"
+    )
+
+
+# =========================================================
+# 20.4 UPLOAD AREA
+# =========================================================
+
+st.markdown(
+    '<div class="section-label">BƯỚC 01 · TẢI BỘ CHỨNG TỪ</div>',
+    unsafe_allow_html=True
+)
+
+with st.container(border=True):
+
+    st.subheader("Tải lên chứng từ")
+
+    st.caption(
+        "Có thể tải nhiều file PDF cùng lúc. "
+        "Hệ thống sẽ tự động đọc nội dung, nhận diện loại chứng từ "
+        "và trích xuất các trường dữ liệu quan trọng."
+    )
+
+    uploaded_files = st.file_uploader(
+        "Chọn file PDF",
+        type=["pdf"],
+        accept_multiple_files=True,
+        label_visibility="collapsed"
+    )
+
+    if uploaded_files:
 
         st.write(
-            f"📄 **{file.name}**"
+            f"**{len(uploaded_files)} file đã được chọn**"
         )
 
-    if st.button(
-        "🔍 Đọc và trích xuất dữ liệu",
-        type="primary"
-    ):
+        file_cols = st.columns(
+            min(len(uploaded_files), 4)
+        )
 
-        documents = {}
+        for i, file in enumerate(uploaded_files):
 
-        for file in uploaded_files:
+            with file_cols[i % len(file_cols)]:
 
-            st.divider()
-
-            st.subheader(
-                f"📄 {file.name}"
-            )
-
-            file_bytes = file.getvalue()
-
-            pages, page_count, method, error = process_pdf(
-                file_bytes
-            )
-
-            if error:
-
-                st.error(
-                    f"Lỗi đọc file: {error}"
+                st.caption(
+                    f"📄 {file.name}"
                 )
 
-                continue
+        st.write("")
 
-            st.write(
-                f"**Số trang:** {page_count}"
-            )
+        process_button = st.button(
+            "Phân tích bộ chứng từ",
+            type="primary",
+            use_container_width=True
+        )
 
-            st.write(
-                f"**Phương pháp đọc:** {method}"
-            )
+        if process_button:
 
-            full_text = "\n".join(
-                pages
-            )
+            documents = {}
+            file_results = []
 
-            if not full_text.strip():
+            progress = st.progress(0)
 
-                st.warning(
-                    "Không đọc được văn bản."
+            for index, file in enumerate(uploaded_files):
+
+                file_bytes = file.getvalue()
+
+                pages, page_count, method, error = process_pdf(
+                    file_bytes
                 )
 
-                continue
+                result = {
+                    "Tên file": file.name,
+                    "Số trang": page_count,
+                    "Phương pháp đọc": method,
+                    "Loại chứng từ": "KHÔNG XÁC ĐỊNH",
+                    "Trạng thái": "Lỗi"
+                }
 
-            # ----------------------------------------
-            # Detect type
-            # ----------------------------------------
+                if error:
 
-            document_type, scores = detect_document_type(
-                full_text,
-                file.name
-            )
+                    file_results.append(result)
 
-            st.write(
-                f"### Loại chứng từ: {document_type}"
-            )
+                    progress.progress(
+                        int(
+                            ((index + 1)
+                             / len(uploaded_files)) * 100
+                        )
+                    )
 
-            # ----------------------------------------
-            # Scores
-            # ----------------------------------------
+                    continue
 
-            score_df = pd.DataFrame(
-                [
-                    {
-                        "Loại chứng từ": k,
-                        "Điểm nhận diện": v
-                    }
-                    for k, v in scores.items()
-                ]
-            ).sort_values(
-                "Điểm nhận diện",
-                ascending=False
-            )
+                full_text = "\n".join(pages)
 
-            with st.expander(
-                "🔎 Xem điểm nhận diện"
-            ):
+                if not full_text.strip():
 
-                st.dataframe(
-                    score_df,
-                    use_container_width=True,
-                    hide_index=True
+                    result["Trạng thái"] = "Không đọc được"
+
+                    file_results.append(result)
+
+                    progress.progress(
+                        int(
+                            ((index + 1)
+                             / len(uploaded_files)) * 100
+                        )
+                    )
+
+                    continue
+
+                # -----------------------------------------
+                # Detect document
+                # -----------------------------------------
+
+                document_type, scores = detect_document_type(
+                    full_text,
+                    file.name
                 )
 
-            # ----------------------------------------
-            # Extract
-            # ----------------------------------------
+                # -----------------------------------------
+                # Extract
+                # -----------------------------------------
 
-            extracted = extract_document(
-                document_type,
-                full_text
-            )
-
-            if document_type not in documents:
-
-                documents[
-                    document_type
-                ] = extracted
-
-            else:
-
-                # Nếu nhiều file cùng loại
-                # ưu tiên file có nhiều dữ liệu hơn
-                old_count = sum(
-                    1
-                    for v in documents[
-                        document_type
-                    ].values()
-                    if v not in [
-                        EMPTY,
-                        None,
-                        ""
-                    ]
+                extracted = extract_document(
+                    document_type,
+                    full_text
                 )
 
-                new_count = sum(
+                # -----------------------------------------
+                # Keep best extraction
+                # -----------------------------------------
+
+                if document_type not in documents:
+
+                    documents[document_type] = extracted
+
+                else:
+
+                    old_count = sum(
+                        1
+                        for v in documents[document_type].values()
+                        if v not in [
+                            EMPTY,
+                            None,
+                            ""
+                        ]
+                    )
+
+                    new_count = sum(
+                        1
+                        for v in extracted.values()
+                        if v not in [
+                            EMPTY,
+                            None,
+                            ""
+                        ]
+                    )
+
+                    if new_count > old_count:
+
+                        documents[document_type] = extracted
+
+                result["Loại chứng từ"] = document_type
+
+                result["Trạng thái"] = "Đã xử lý"
+
+                result["Số trường trích xuất"] = sum(
                     1
                     for v in extracted.values()
                     if v not in [
@@ -2473,57 +2651,40 @@ if uploaded_files:
                     ]
                 )
 
-                if new_count > old_count:
+                result["Dữ liệu"] = extracted
 
-                    documents[
-                        document_type
-                    ] = extracted
+                result["Nội dung"] = full_text
 
-            # ----------------------------------------
-            # Show extraction
-            # ----------------------------------------
+                result["Điểm nhận diện"] = scores
 
-            if extracted:
+                file_results.append(result)
 
-                extraction_df = pd.DataFrame(
-                    [
-                        {
-                            "Trường dữ liệu": key,
-                            "Giá trị": value
-                        }
-                        for key, value
-                        in extracted.items()
-                    ]
+                progress.progress(
+                    int(
+                        ((index + 1)
+                         / len(uploaded_files)) * 100
+                    )
                 )
 
-                st.write(
-                    "### 🔎 Chi tiết nhận diện"
-                )
+            st.session_state.documents_data = documents
 
-                st.dataframe(
-                    extraction_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
+            st.session_state.file_results = file_results
 
-            # ----------------------------------------
-            # Raw text
-            # ----------------------------------------
+            st.session_state.processed_files = [
+                x["Tên file"]
+                for x in file_results
+            ]
 
-            with st.expander(
-                "📖 Xem nội dung PDF đã đọc"
-            ):
+            st.success(
+                f"Đã phân tích {len(file_results)} file.",
+                icon="✓"
+            )
 
-                st.text(
-                    full_text
-                )
-
-        # Save
-        st.session_state.documents_data = documents
+            st.rerun()
 
 
 # =========================================================
-# 21. CROSS CHECK
+# 20.5 DOCUMENT OVERVIEW
 # =========================================================
 
 documents = st.session_state.get(
@@ -2531,76 +2692,295 @@ documents = st.session_state.get(
     {}
 )
 
+file_results = st.session_state.get(
+    "file_results",
+    []
+)
+
 
 if documents:
 
-    st.divider()
+    st.write("")
 
-    st.header(
-        "🔄 Kiểm tra chéo dữ liệu"
+    st.markdown(
+        '<div class="section-label">BƯỚC 02 · BỘ CHỨNG TỪ</div>',
+        unsafe_allow_html=True
     )
 
-    if len(documents) >= 2:
+    # -----------------------------------------------------
+    # Summary metrics
+    # -----------------------------------------------------
 
-        cross_df = cross_check_documents(
-            documents
+    total_documents = len(documents)
+
+    extracted_documents = 0
+
+    for doc in documents.values():
+
+        if any(
+            v not in [EMPTY, None, ""]
+            for v in doc.values()
+        ):
+
+            extracted_documents += 1
+
+    total_files = len(file_results)
+
+    m1, m2, m3, m4 = st.columns(4)
+
+    m1.metric(
+        "Tổng file",
+        total_files
+    )
+
+    m2.metric(
+        "Loại chứng từ",
+        total_documents
+    )
+
+    m3.metric(
+        "Đã trích xuất",
+        extracted_documents
+    )
+
+    m4.metric(
+        "Có thể kiểm tra",
+        "Có" if total_documents >= 2 else "Chưa"
+    )
+
+    st.write("")
+
+    # -----------------------------------------------------
+    # Document list
+    # -----------------------------------------------------
+
+    for doc_type, data in documents.items():
+
+        related_files = [
+            x["Tên file"]
+            for x in file_results
+            if x.get("Loại chứng từ") == doc_type
+        ]
+
+        filled_fields = sum(
+            1
+            for v in data.values()
+            if v not in [
+                EMPTY,
+                None,
+                ""
+            ]
         )
 
-        if not cross_df.empty:
+        total_fields = len(data)
+
+        with st.container(border=True):
+
+            left, right = st.columns(
+                [4, 1]
+            )
+
+            with left:
+
+                st.markdown(
+                    f"### {doc_type}"
+                )
+
+                if related_files:
+
+                    st.caption(
+                        " · ".join(related_files)
+                    )
+
+                st.caption(
+                    f"Đã nhận diện {filled_fields}/{total_fields} trường dữ liệu"
+                )
+
+            with right:
+
+                if filled_fields == total_fields:
+
+                    st.success(
+                        "Hoàn tất",
+                        icon="✓"
+                    )
+
+                elif filled_fields > 0:
+
+                    st.warning(
+                        "Một phần",
+                        icon="!"
+                    )
+
+                else:
+
+                    st.error(
+                        "Không có dữ liệu",
+                        icon="×"
+                    )
+
+            extraction_df = pd.DataFrame(
+                [
+                    {
+                        "Trường dữ liệu": key,
+                        "Giá trị": value
+                    }
+                    for key, value in data.items()
+                ]
+            )
 
             st.dataframe(
-                cross_df,
+                extraction_df,
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
+                height=min(
+                    420,
+                    55 + len(extraction_df) * 35
+                )
             )
 
-            # Metrics
-            matched = len(
-                cross_df[
-                    cross_df["Trạng thái"] == "KHỚP"
+
+# =========================================================
+# 21. CROSS CHECK
+# =========================================================
+
+if documents:
+
+    st.write("")
+
+    st.markdown(
+        '<div class="section-label">BƯỚC 03 · KIỂM TRA CHÉO</div>',
+        unsafe_allow_html=True
+    )
+
+    with st.container(border=True):
+
+        st.subheader(
+            "Đối chiếu dữ liệu giữa các chứng từ"
+        )
+
+        st.caption(
+            "Hệ thống so sánh các trường có khả năng đối chiếu "
+            "giữa Invoice, Packing List, B/L, Booking và C/O."
+        )
+
+        if len(documents) >= 2:
+
+            cross_df = cross_check_documents(
+                documents
+            )
+
+            if not cross_df.empty:
+
+                matched = len(
+                    cross_df[
+                        cross_df["Trạng thái"] == "KHỚP"
+                    ]
+                )
+
+                mismatch = len(
+                    cross_df[
+                        cross_df["Trạng thái"] == "KHÔNG KHỚP"
+                    ]
+                )
+
+                warning = len(
+                    cross_df[
+                        cross_df["Trạng thái"] == "CẦN KIỂM TRA"
+                    ]
+                )
+
+                info_count = len(
+                    cross_df[
+                        cross_df["Trạng thái"] == "Có dữ liệu"
+                    ]
+                )
+
+                c1, c2, c3, c4 = st.columns(4)
+
+                c1.metric(
+                    "Khớp",
+                    matched
+                )
+
+                c2.metric(
+                    "Không khớp",
+                    mismatch
+                )
+
+                c3.metric(
+                    "Cần kiểm tra",
+                    warning
+                )
+
+                c4.metric(
+                    "Có dữ liệu",
+                    info_count
+                )
+
+                st.write("")
+
+                # -----------------------------------------
+                # Filter
+                # -----------------------------------------
+
+                status_options = [
+                    "Tất cả",
+                    "KHỚP",
+                    "KHÔNG KHỚP",
+                    "CẦN KIỂM TRA",
+                    "Có dữ liệu"
                 ]
-            )
 
-            mismatch = len(
-                cross_df[
-                    cross_df["Trạng thái"] == "KHÔNG KHỚP"
-                ]
-            )
+                selected_status = st.selectbox(
+                    "Lọc kết quả",
+                    status_options
+                )
 
-            warning = len(
-                cross_df[
-                    cross_df["Trạng thái"] == "CẦN KIỂM TRA"
-                ]
-            )
+                if selected_status != "Tất cả":
 
-            c1, c2, c3 = st.columns(3)
+                    display_cross_df = cross_df[
+                        cross_df["Trạng thái"]
+                        == selected_status
+                    ]
 
-            c1.metric(
-                "✅ Khớp",
-                matched
-            )
+                else:
 
-            c2.metric(
-                "❌ Không khớp",
-                mismatch
-            )
+                    display_cross_df = cross_df
 
-            c3.metric(
-                "⚠️ Cần kiểm tra",
-                warning
-            )
+                # -----------------------------------------
+                # Main table
+                # -----------------------------------------
+
+                st.dataframe(
+                    display_cross_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=420
+                )
+
+                st.download_button(
+                    "Tải kết quả kiểm tra chéo CSV",
+                    data=display_cross_df.to_csv(
+                        index=False
+                    ).encode("utf-8-sig"),
+                    file_name="cross_check_result.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+            else:
+
+                st.info(
+                    "Các chứng từ hiện tại chưa có đủ trường "
+                    "dữ liệu để thực hiện kiểm tra chéo."
+                )
 
         else:
 
             st.info(
-                "Chưa có đủ trường dữ liệu để thực hiện kiểm tra chéo."
+                "Cần ít nhất 2 loại chứng từ để thực hiện kiểm tra chéo."
             )
-
-    else:
-
-        st.info(
-            "Cần ít nhất 2 loại chứng từ để kiểm tra chéo."
-        )
 
 
 # =========================================================
@@ -2609,35 +2989,253 @@ if documents:
 
 if documents:
 
-    st.divider()
+    st.write("")
 
-    st.header(
-        "📋 Thông tin hỗ trợ khai báo hải quan"
+    st.markdown(
+        '<div class="section-label">BƯỚC 04 · HỖ TRỢ KHAI BÁO</div>',
+        unsafe_allow_html=True
     )
 
-    customs_df = build_customs_data(
-        documents
-    )
+    with st.container(border=True):
 
-    st.dataframe(
-        customs_df,
-        use_container_width=True,
-        hide_index=True
-    )
+        st.subheader(
+            "Thông tin hỗ trợ chuẩn bị khai báo hải quan"
+        )
 
-    st.info(
-        "Các trường trên được tổng hợp từ chứng từ đã tải lên. "
-        "Những trường không có dữ liệu sẽ hiển thị 'Không tìm thấy' "
-        "và cần người khai kiểm tra/bổ sung."
-    )
+        st.caption(
+            "Các trường dưới đây được tổng hợp từ bộ chứng từ đã tải lên. "
+            "Người khai cần kiểm tra và xác nhận trước khi sử dụng."
+        )
+
+        customs_df = build_customs_data(
+            documents
+        )
+
+        # -----------------------------------------
+        # Completion
+        # -----------------------------------------
+
+        total_customs_fields = len(
+            customs_df
+        )
+
+        available_customs_fields = len(
+            customs_df[
+                customs_df["Giá trị"]
+                .astype(str)
+                .str.strip()
+                .ne(EMPTY)
+            ]
+        )
+
+        missing_customs_fields = (
+            total_customs_fields
+            - available_customs_fields
+        )
+
+        p1, p2, p3 = st.columns(3)
+
+        p1.metric(
+            "Tổng trường",
+            total_customs_fields
+        )
+
+        p2.metric(
+            "Có dữ liệu",
+            available_customs_fields
+        )
+
+        p3.metric(
+            "Cần bổ sung",
+            missing_customs_fields
+        )
+
+        st.write("")
+
+        # -----------------------------------------
+        # Customs table
+        # -----------------------------------------
+
+        st.dataframe(
+            customs_df,
+            use_container_width=True,
+            hide_index=True,
+            height=650
+        )
+
+        st.download_button(
+            "Tải dữ liệu hỗ trợ khai báo CSV",
+            data=customs_df.to_csv(
+                index=False
+            ).encode("utf-8-sig"),
+            file_name="customs_declaration_support.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+        st.warning(
+            "Dữ liệu chỉ có tính chất hỗ trợ kiểm tra và chuẩn bị thông tin. "
+            "Hệ thống không trực tiếp khai hoặc gửi tờ khai lên VNACCS/VCIS. "
+            "Người khai hải quan vẫn phải kiểm tra, xác nhận và chịu trách nhiệm "
+            "đối với thông tin khai báo chính thức."
+        )
 
 
 # =========================================================
-# 23. FOOTER
+# 23. PROCESSING REPORT
+# =========================================================
+
+if file_results:
+
+    st.write("")
+
+    st.markdown(
+        '<div class="section-label">BƯỚC 05 · NHẬT KÝ XỬ LÝ</div>',
+        unsafe_allow_html=True
+    )
+
+    with st.container(border=True):
+
+        st.subheader(
+            "Tình trạng xử lý bộ chứng từ"
+        )
+
+        report_rows = []
+
+        for item in file_results:
+
+            report_rows.append({
+                "Tên file": item.get(
+                    "Tên file",
+                    EMPTY
+                ),
+
+                "Số trang": item.get(
+                    "Số trang",
+                    0
+                ),
+
+                "Phương pháp đọc": item.get(
+                    "Phương pháp đọc",
+                    EMPTY
+                ),
+
+                "Loại chứng từ": item.get(
+                    "Loại chứng từ",
+                    EMPTY
+                ),
+
+                "Số trường trích xuất": item.get(
+                    "Số trường trích xuất",
+                    0
+                ),
+
+                "Trạng thái": item.get(
+                    "Trạng thái",
+                    EMPTY
+                )
+            })
+
+        report_df = pd.DataFrame(
+            report_rows
+        )
+
+        st.dataframe(
+            report_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.download_button(
+            "Tải nhật ký xử lý CSV",
+            data=report_df.to_csv(
+                index=False
+            ).encode("utf-8-sig"),
+            file_name="document_processing_report.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+
+# =========================================================
+# 24. RAW OCR / TEXT
+# =========================================================
+
+if file_results:
+
+    with st.expander(
+        "Xem nội dung văn bản hệ thống đã đọc"
+    ):
+
+        for item in file_results:
+
+            st.markdown(
+                f"**{item.get('Tên file', EMPTY)}**"
+            )
+
+            raw_text = item.get(
+                "Nội dung",
+                ""
+            )
+
+            if raw_text:
+
+                st.text_area(
+                    "Nội dung",
+                    raw_text,
+                    height=250,
+                    key=f"raw_{item.get('Tên file')}"
+                )
+
+            else:
+
+                st.caption(
+                    "Không có nội dung văn bản."
+                )
+
+
+# =========================================================
+# 25. RESET
+# =========================================================
+
+if documents:
+
+    st.write("")
+
+    with st.expander(
+        "Quản lý phiên làm việc"
+    ):
+
+        st.caption(
+            "Xóa bộ chứng từ hiện tại để bắt đầu một lần kiểm tra mới."
+        )
+
+        if st.button(
+            "Xóa bộ chứng từ hiện tại",
+            type="secondary"
+        ):
+
+            st.session_state.documents_data = {}
+
+            st.session_state.processed_files = []
+
+            st.session_state.file_results = []
+
+            st.rerun()
+
+
+# =========================================================
+# 26. FOOTER
 # =========================================================
 
 st.divider()
 
 st.caption(
-    "Customs Document Check – Prototype phục vụ nghiên cứu kiểm soát chứng từ."
+    "Customs Document Check · Document Control Prototype"
+)
+
+st.caption(
+    "Automated document extraction · "
+    "Cross-document validation · "
+    "Customs declaration support"
 )
