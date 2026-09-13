@@ -1,12 +1,14 @@
 import streamlit as st
 from pypdf import PdfReader
-import re
+import pytesseract
+from pdf2image import convert_from_bytes
 import pandas as pd
+import re
 
 
-# =========================================================
-# 1. CẤU HÌNH
-# =========================================================
+# =========================
+# CẤU HÌNH TRANG
+# =========================
 
 st.set_page_config(
     page_title="CustomsDoc Check",
@@ -18,167 +20,139 @@ st.title("📋 CustomsDoc Check")
 st.subheader("Kiểm soát chứng từ phục vụ khai báo hải quan")
 
 st.write(
-    "Tải lên bộ chứng từ PDF để hệ thống tự động đọc, "
-    "nhận diện loại chứng từ và trích xuất dữ liệu."
+    "Hệ thống tự động đọc PDF, OCR tài liệu scan "
+    "và trích xuất thông tin phục vụ kiểm tra chứng từ."
 )
 
 st.divider()
 
 
-# =========================================================
-# 2. CHUẨN HÓA TEXT
-# =========================================================
+# =========================
+# ĐỌC PDF BẰNG TEXT
+# =========================
 
-def normalize_text(text):
-    """
-    Chuẩn hóa khoảng trắng nhưng vẫn giữ nội dung.
-    """
+def read_pdf_text(file_bytes):
 
-    text = text.replace("\xa0", " ")
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n\s*\n+", "\n", text)
+    try:
+        reader = PdfReader(file_bytes)
 
-    return text.strip()
+        text = ""
 
+        for page in reader.pages:
+            page_text = page.extract_text() or ""
+            text += page_text + "\n"
 
-def clean_value(value):
-    """
-    Làm sạch giá trị lấy được từ PDF.
-    """
+        return text, len(reader.pages)
 
-    if not value:
-        return None
-
-    value = value.strip()
-    value = re.sub(r"\s+", " ", value)
-
-    return value.strip(" :;-.")
+    except Exception:
+        return "", 0
 
 
-# =========================================================
-# 3. TÌM THEO NHIỀU MẪU
-# =========================================================
+# =========================
+# OCR PDF SCAN
+# =========================
 
-def search_patterns(text, patterns):
+def ocr_pdf(file_bytes):
 
-    for pattern in patterns:
+    images = convert_from_bytes(
+        file_bytes,
+        dpi=200
+    )
 
-        match = re.search(
-            pattern,
-            text,
-            re.IGNORECASE | re.MULTILINE
+    text = ""
+
+    for i, image in enumerate(images):
+
+        page_text = pytesseract.image_to_string(
+            image,
+            lang="eng+vie"
         )
 
-        if match:
+        text += f"\n--- PAGE {i + 1} ---\n"
+        text += page_text
 
-            value = match.group(1)
-
-            value = clean_value(value)
-
-            if value:
-                return value
-
-    return None
+    return text, len(images)
 
 
-# =========================================================
-# 4. NHẬN DIỆN LOẠI CHỨNG TỪ
-# =========================================================
+# =========================
+# CHUẨN HÓA TEXT
+# =========================
 
-def detect_document_type(text, filename):
+def normalize_text(text):
 
-    text_lower = text.lower()
-    filename_lower = filename.lower()
+    text = text.replace("\xa0", " ")
 
-    # -------------------------
-    # B/L
-    # -------------------------
-
-    bl_keywords = [
-        "bill of lading",
-        "bill of lading no",
-        "b/l no",
-        "b/l number",
-        "vessel",
-        "port of loading",
-        "port of discharge",
-        "shipper",
-        "consignee"
-    ]
-
-    bl_score = sum(
-        1 for keyword in bl_keywords
-        if keyword in text_lower
+    text = re.sub(
+        r"[ \t]+",
+        " ",
+        text
     )
 
-    # -------------------------
-    # Packing List
-    # -------------------------
+    return text
 
-    pl_keywords = [
-        "packing list",
-        "packing list no",
-        "package",
-        "packages",
-        "carton",
-        "cartons",
-        "gross weight",
-        "net weight"
-    ]
 
-    pl_score = sum(
-        1 for keyword in pl_keywords
-        if keyword in text_lower
-    )
+# =========================
+# NHẬN DIỆN LOẠI CHỨNG TỪ
+# =========================
 
-    # -------------------------
-    # C/O
-    # -------------------------
+def detect_document_type(text):
 
-    co_keywords = [
-        "certificate of origin",
-        "certificate of origin form",
-        "country of origin",
-        "origin criterion",
-        "exporter",
-        "issuing authority"
-    ]
-
-    co_score = sum(
-        1 for keyword in co_keywords
-        if keyword in text_lower
-    )
-
-    # -------------------------
-    # Invoice
-    # -------------------------
-
-    invoice_keywords = [
-        "invoice",
-        "invoice no",
-        "invoice number",
-        "unit price",
-        "amount",
-        "total amount",
-        "seller",
-        "buyer"
-    ]
-
-    invoice_score = sum(
-        1 for keyword in invoice_keywords
-        if keyword in text_lower
-    )
-
-    # -------------------------
-    # Ưu tiên kết quả
-    # -------------------------
+    text_upper = text.upper()
 
     scores = {
-        "B/L": bl_score,
-        "Packing List": pl_score,
-        "C/O": co_score,
-        "Invoice": invoice_score
+        "COMMERCIAL INVOICE": 0,
+        "BILL OF LADING": 0,
+        "PACKING LIST": 0,
+        "CERTIFICATE OF ORIGIN": 0
     }
+
+    invoice_keywords = [
+        "COMMERCIAL INVOICE",
+        "PROFORMA INVOICE",
+        "INVOICE NO",
+        "UNIT PRICE",
+        "TOTAL AMOUNT"
+    ]
+
+    bl_keywords = [
+        "BILL OF LADING",
+        "B/L",
+        "SHIPPER",
+        "CONSIGNEE",
+        "PORT OF LOADING",
+        "PORT OF DISCHARGE"
+    ]
+
+    pl_keywords = [
+        "PACKING LIST",
+        "NET WEIGHT",
+        "GROSS WEIGHT",
+        "PACKAGES",
+        "CARTON"
+    ]
+
+    co_keywords = [
+        "CERTIFICATE OF ORIGIN",
+        "CERTIFICATE OF ORIGIN FORM",
+        "ORIGIN CRITERION",
+        "EXPORTER"
+    ]
+
+    for keyword in invoice_keywords:
+        if keyword in text_upper:
+            scores["COMMERCIAL INVOICE"] += 1
+
+    for keyword in bl_keywords:
+        if keyword in text_upper:
+            scores["BILL OF LADING"] += 1
+
+    for keyword in pl_keywords:
+        if keyword in text_upper:
+            scores["PACKING LIST"] += 1
+
+    for keyword in co_keywords:
+        if keyword in text_upper:
+            scores["CERTIFICATE OF ORIGIN"] += 1
 
     document_type = max(
         scores,
@@ -186,353 +160,279 @@ def detect_document_type(text, filename):
     )
 
     if scores[document_type] == 0:
-
-        # thử dựa vào tên file
-
-        if "invoice" in filename_lower:
-            document_type = "Invoice"
-
-        elif "packing" in filename_lower:
-            document_type = "Packing List"
-
-        elif "bl" in filename_lower or "bill" in filename_lower:
-            document_type = "B/L"
-
-        elif "co" in filename_lower:
-            document_type = "C/O"
-
-        else:
-            document_type = "Chưa xác định"
+        return "KHÔNG XÁC ĐỊNH"
 
     return document_type
 
 
-# =========================================================
-# 5. EXTRACT INVOICE
-# =========================================================
+# =========================
+# HÀM TÌM REGEX
+# =========================
+
+def find_pattern(text, patterns):
+
+    for pattern in patterns:
+
+        match = re.search(
+            pattern,
+            text,
+            re.IGNORECASE
+        )
+
+        if match:
+            return match.group(1).strip()
+
+    return None
+
+
+# =========================
+# TRÍCH XUẤT INVOICE
+# =========================
 
 def extract_invoice(text):
 
     data = {}
 
-    # Invoice number
-
-    data["Invoice No."] = search_patterns(
+    data["Invoice No."] = find_pattern(
         text,
         [
-            r"(?:proforma\s+)?invoice\s*(?:no\.?|number|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/]*)",
-
-            r"commercial\s+invoice\s*(?:no\.?|number|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/]*)",
-
-            r"invoice\s+ref(?:erence)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/]*)"
+            r"(?:COMMERCIAL|PROFORMA)\s+INVOICE\s*(?:NO\.?|NUMBER)?\s*[:#]?\s*([A-Z0-9\-\/]+)",
+            r"Invoice\s+No\.?\s*[:#]?\s*([A-Z0-9\-\/]+)"
         ]
     )
 
-    # Date
-
-    data["Invoice Date"] = search_patterns(
+    data["Invoice Date"] = find_pattern(
         text,
         [
-            r"(?:invoice\s+)?date\s*[:\-]?\s*(\d{1,2}[-\/.][A-Za-z0-9]+[-\/.]\d{2,4})",
-
-            r"(?:invoice\s+)?date\s*[:\-]?\s*(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4})"
+            r"Date\s*[:\-]?\s*(\d{1,2}[-\/][A-Za-z0-9]+[-\/]?\d{0,4})",
+            r"Date\s*[:\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})"
         ]
     )
 
-    # Seller
-
-    data["Seller"] = search_patterns(
+    data["Seller / Exporter"] = find_pattern(
         text,
         [
-            r"seller\s*[:\-]?\s*(.+)",
-
-            r"exporter\s*[:\-]?\s*(.+)",
-
-            r"from\s*[:\-]?\s*(.+)"
+            r"(?:Seller|Exporter)\s*[:\-]?\s*(.+)",
+            r"Shipper\s*[:\-]?\s*(.+)"
         ]
     )
 
-    # Buyer
-
-    data["Buyer"] = search_patterns(
+    data["Buyer / Importer"] = find_pattern(
         text,
         [
-            r"buyer\s*[:\-]?\s*(.+)",
-
-            r"importer\s*[:\-]?\s*(.+)"
+            r"(?:Buyer|Importer)\s*[:\-]?\s*(.+)",
+            r"Consignee\s*[:\-]?\s*(.+)"
         ]
     )
 
-    # Currency
-
-    currency = search_patterns(
+    data["Currency"] = find_pattern(
         text,
         [
-            r"\b(USD|EUR|JPY|KRW|VND|CNY|GBP)\b"
+            r"\b(USD|EUR|KRW|JPY|VND)\b"
         ]
     )
 
-    data["Currency"] = currency
-
-    # Incoterm
-
-    incoterm = search_patterns(
+    data["Incoterm"] = find_pattern(
         text,
         [
-            r"\b(FOB|CIF|CFR|EXW|FCA|DAP|DDP|CPT|CIP|FAS|DAT)\b"
+            r"\b(EXW|FOB|CFR|CIF|FCA|CPT|CIP|DAP|DPU|DDP)\b"
         ]
     )
 
-    data["Incoterm"] = incoterm
-
-    # Total amount
-
-    data["Total Amount"] = search_patterns(
+    data["Total Amount"] = find_pattern(
         text,
         [
-            r"total\s+amount\s*[:\-]?\s*(?:USD|EUR|JPY|KRW|VND|CNY|GBP)?\s*([\d,]+(?:\.\d+)?)",
-
-            r"grand\s+total\s*[:\-]?\s*(?:USD|EUR|JPY|KRW|VND|CNY|GBP)?\s*([\d,]+(?:\.\d+)?)",
-
-            r"TOTAL\s*:\s*[\d,]+(?:\.\d+)?\s*KG\s+(?:USD|EUR|JPY|KRW|VND|CNY|GBP)\s*([\d,]+(?:\.\d+)?)"
+            r"(?:TOTAL|TOTAL AMOUNT)\s*[:\-]?\s*(?:USD|EUR|KRW|JPY|VND)?\s*([\d,]+\.\d{2})"
         ]
     )
 
-    # Total weight
-
-    data["Total Weight"] = search_patterns(
+    data["Total Weight"] = find_pattern(
         text,
         [
-            r"TOTAL\s*:\s*([\d,]+(?:\.\d+)?)\s*KG",
-
-            r"total\s+(?:net\s+)?weight\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)",
-
-            r"net\s+weight\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
+            r"(?:TOTAL|TOTAL WEIGHT)\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
         ]
     )
 
     return data
 
 
-# =========================================================
-# 6. EXTRACT PACKING LIST
-# =========================================================
-
-def extract_packing_list(text):
-
-    data = {}
-
-    data["Packing List No."] = search_patterns(
-        text,
-        [
-            r"packing\s+list\s*(?:no\.?|number|#)\s*[:\-]?\s*([A-Z0-9\-\/]+)"
-        ]
-    )
-
-    data["Net Weight"] = search_patterns(
-        text,
-        [
-            r"net\s+weight\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)",
-
-            r"n\.?w\.?\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
-        ]
-    )
-
-    data["Gross Weight"] = search_patterns(
-        text,
-        [
-            r"gross\s+weight\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)",
-
-            r"g\.?w\.?\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
-        ]
-    )
-
-    data["Package Count"] = search_patterns(
-        text,
-        [
-            r"(?:total\s+)?(?:package|packages|carton|cartons)\s*[:\-]?\s*(\d+)",
-
-            r"(\d+)\s*(?:PLTS|PALLETS|CARTONS|CTNS)"
-        ]
-    )
-
-    data["Container"] = search_patterns(
-        text,
-        [
-            r"container\s*(?:no\.?|number)?\s*[:\-]?\s*([A-Z]{4}\d{7})",
-
-            r"\b([A-Z]{4}\d{7})\b"
-        ]
-    )
-
-    return data
-
-
-# =========================================================
-# 7. EXTRACT B/L
-# =========================================================
+# =========================
+# TRÍCH XUẤT BILL OF LADING
+# =========================
 
 def extract_bl(text):
 
     data = {}
 
-    data["B/L No."] = search_patterns(
+    data["B/L No."] = find_pattern(
         text,
         [
-            r"(?:B\/L|BL|Bill\s+of\s+Lading)\s*(?:No\.?|Number|#)\s*[:\-]?\s*([A-Z0-9\-\/]+)",
-
-            r"B\/L\s*[:\-]?\s*([A-Z0-9\-\/]+)"
+            r"(?:B\/L|BILL OF LADING)\s*(?:NO\.?|NUMBER)?\s*[:#]?\s*([A-Z0-9\-]+)"
         ]
     )
 
-    data["Shipper"] = search_patterns(
+    data["Shipper"] = find_pattern(
         text,
         [
-            r"shipper\s*[:\-]?\s*(.+)",
-
-            r"exporter\s*[:\-]?\s*(.+)"
+            r"SHIPPER\s*[:\-]?\s*(.+)"
         ]
     )
 
-    data["Consignee"] = search_patterns(
+    data["Consignee"] = find_pattern(
         text,
         [
-            r"consignee\s*[:\-]?\s*(.+)",
-
-            r"importer\s*[:\-]?\s*(.+)"
+            r"CONSIGNEE\s*[:\-]?\s*(.+)"
         ]
     )
 
-    data["Container"] = search_patterns(
+    data["Container No."] = find_pattern(
         text,
         [
-            r"container\s*(?:no\.?|number)?\s*[:\-]?\s*([A-Z]{4}\d{7})",
-
-            r"\b([A-Z]{4}\d{7})\b"
+            r"(?:CONTAINER|CONTAINER NO\.?)\s*[:\-]?\s*([A-Z]{4}\d{7})"
         ]
     )
 
-    data["Gross Weight"] = search_patterns(
+    data["Gross Weight"] = find_pattern(
         text,
         [
-            r"gross\s+weight\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)",
-
-            r"G\.?W\.?\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
+            r"GROSS\s+WEIGHT\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
         ]
     )
 
-    data["Port of Loading"] = search_patterns(
+    data["Port of Loading"] = find_pattern(
         text,
         [
-            r"port\s+of\s+loading\s*[:\-]?\s*(.+)",
-
-            r"P\.?O\.?L\.?\s*[:\-]?\s*(.+)"
+            r"PORT OF LOADING\s*[:\-]?\s*(.+)"
         ]
     )
 
-    data["Port of Discharge"] = search_patterns(
+    data["Port of Discharge"] = find_pattern(
         text,
         [
-            r"port\s+of\s+discharge\s*[:\-]?\s*(.+)",
-
-            r"P\.?O\.?D\.?\s*[:\-]?\s*(.+)"
+            r"PORT OF DISCHARGE\s*[:\-]?\s*(.+)"
         ]
     )
 
-    data["Voyage"] = search_patterns(
+    data["Voyage"] = find_pattern(
         text,
         [
-            r"voyage\s*[:\-]?\s*(.+)"
+            r"VOYAGE\s*[:\-]?\s*(.+)"
         ]
     )
 
     return data
 
 
-# =========================================================
-# 8. EXTRACT C/O
-# =========================================================
+# =========================
+# TRÍCH XUẤT PACKING LIST
+# =========================
+
+def extract_packing_list(text):
+
+    data = {}
+
+    data["Packing List No."] = find_pattern(
+        text,
+        [
+            r"(?:PACKING LIST|P\/L)\s*(?:NO\.?|NUMBER)?\s*[:#]?\s*([A-Z0-9\-\/]+)"
+        ]
+    )
+
+    data["Net Weight"] = find_pattern(
+        text,
+        [
+            r"NET\s+WEIGHT\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
+        ]
+    )
+
+    data["Gross Weight"] = find_pattern(
+        text,
+        [
+            r"GROSS\s+WEIGHT\s*[:\-]?\s*([\d,]+(?:\.\d+)?)\s*(?:KG|KGS)"
+        ]
+    )
+
+    data["Packages"] = find_pattern(
+        text,
+        [
+            r"(?:TOTAL\s+)?(?:PACKAGES|PKGS|CARTONS|CTNS)\s*[:\-]?\s*(\d+)"
+        ]
+    )
+
+    data["Container No."] = find_pattern(
+        text,
+        [
+            r"(?:CONTAINER|CONTAINER NO\.?)\s*[:\-]?\s*([A-Z]{4}\d{7})"
+        ]
+    )
+
+    return data
+
+
+# =========================
+# TRÍCH XUẤT C/O
+# =========================
 
 def extract_co(text):
 
     data = {}
 
-    data["Exporter"] = search_patterns(
+    data["Exporter"] = find_pattern(
         text,
         [
-            r"exporter\s*[:\-]?\s*(.+)"
+            r"EXPORTER\s*[:\-]?\s*(.+)"
         ]
     )
 
-    data["Importer"] = search_patterns(
+    data["Importer"] = find_pattern(
         text,
         [
-            r"importer\s*[:\-]?\s*(.+)",
-
-            r"consignee\s*[:\-]?\s*(.+)"
+            r"IMPORTER\s*[:\-]?\s*(.+)"
         ]
     )
 
-    data["Country of Origin"] = search_patterns(
+    data["Origin"] = find_pattern(
         text,
         [
-            r"country\s+of\s+origin\s*[:\-]?\s*(.+)",
-
-            r"origin\s*[:\-]?\s*(.+)",
-
-            r"made\s+in\s+(.+)"
+            r"(?:COUNTRY OF ORIGIN|ORIGIN)\s*[:\-]?\s*(.+)",
+            r"MADE IN\s+(.+)"
         ]
     )
 
-    data["HS Code"] = search_patterns(
+    data["HS Code"] = find_pattern(
         text,
         [
-            r"HS\s*(?:Code|CODE)?\s*[:\-]?\s*(\d{4,12})"
+            r"HS\s*(?:CODE|NO\.?)?\s*[:\-]?\s*(\d{4,10})"
         ]
     )
 
     return data
 
 
-# =========================================================
-# 9. HÀM EXTRACT CHUNG
-# =========================================================
+# =========================
+# ĐIỀU PHỐI TRÍCH XUẤT
+# =========================
 
-def extract_document(text, filename):
+def extract_document(text, document_type):
 
-    text = normalize_text(text)
+    if document_type == "COMMERCIAL INVOICE":
+        return extract_invoice(text)
 
-    document_type = detect_document_type(
-        text,
-        filename
-    )
+    if document_type == "BILL OF LADING":
+        return extract_bl(text)
 
-    if document_type == "Invoice":
+    if document_type == "PACKING LIST":
+        return extract_packing_list(text)
 
-        data = extract_invoice(text)
+    if document_type == "CERTIFICATE OF ORIGIN":
+        return extract_co(text)
 
-    elif document_type == "Packing List":
-
-        data = extract_packing_list(text)
-
-    elif document_type == "B/L":
-
-        data = extract_bl(text)
-
-    elif document_type == "C/O":
-
-        data = extract_co(text)
-
-    else:
-
-        data = {}
-
-    return document_type, data
+    return {}
 
 
-# =========================================================
-# 10. UPLOAD FILE
-# =========================================================
+# =========================
+# UPLOAD FILE
+# =========================
 
 uploaded_files = st.file_uploader(
     "📄 Tải lên chứng từ PDF",
@@ -541,9 +441,9 @@ uploaded_files = st.file_uploader(
 )
 
 
-# =========================================================
-# 11. XỬ LÝ
-# =========================================================
+# =========================
+# XỬ LÝ
+# =========================
 
 if uploaded_files:
 
@@ -554,10 +454,7 @@ if uploaded_files:
     st.write("### 📁 Danh sách chứng từ")
 
     for file in uploaded_files:
-
-        st.write(
-            f"📄 {file.name}"
-        )
+        st.write(f"📄 {file.name}")
 
     st.divider()
 
@@ -566,61 +463,91 @@ if uploaded_files:
         type="primary"
     ):
 
-        all_documents = []
-
         for file in uploaded_files:
 
             st.write(
                 f"## 📄 {file.name}"
             )
 
-            try:
+            file_bytes = file.getvalue()
 
-                reader = PdfReader(file)
+            # -------------------------
+            # THỬ ĐỌC TEXT TRƯỚC
+            # -------------------------
 
-                all_text = ""
+            text, page_count = read_pdf_text(
+                file_bytes
+            )
 
-                for page in reader.pages:
+            extraction_method = "PDF Text"
 
-                    text = page.extract_text() or ""
+            # -------------------------
+            # NẾU KHÔNG CÓ TEXT → OCR
+            # -------------------------
 
-                    all_text += text + "\n"
+            if not text.strip():
 
-                st.write(
-                    f"**Số trang:** {len(reader.pages)}"
+                st.info(
+                    "PDF không có lớp văn bản → đang sử dụng OCR..."
                 )
 
-                if not all_text.strip():
+                try:
 
-                    st.warning(
-                        "Không đọc được văn bản. "
-                        "PDF có thể là file scan và cần OCR."
+                    text, page_count = ocr_pdf(
+                        file_bytes
+                    )
+
+                    extraction_method = "OCR"
+
+                except Exception as e:
+
+                    st.error(
+                        f"OCR thất bại: {e}"
                     )
 
                     continue
 
+            # -------------------------
+            # CHUẨN HÓA
+            # -------------------------
+
+            text = normalize_text(text)
+
+            st.write(
+                f"**Số trang:** {page_count}"
+            )
+
+            st.write(
+                f"**Phương thức đọc:** {extraction_method}"
+            )
+
+            if text.strip():
+
                 st.success(
-                    "Đọc PDF thành công."
+                    "Đọc tài liệu thành công."
                 )
 
-                document_type, data = extract_document(
-                    all_text,
-                    file.name
+                # -------------------------
+                # NHẬN DIỆN LOẠI CHỨNG TỪ
+                # -------------------------
+
+                document_type = detect_document_type(
+                    text
                 )
 
-                st.info(
-                    f"📑 Loại chứng từ nhận diện: **{document_type}**"
+                st.write(
+                    f"### 🗂️ Loại chứng từ: "
+                    f"**{document_type}**"
                 )
 
-                # Lưu lại
+                # -------------------------
+                # TRÍCH XUẤT
+                # -------------------------
 
-                all_documents.append({
-                    "filename": file.name,
-                    "type": document_type,
-                    "data": data
-                })
-
-                # Hiển thị dữ liệu
+                data = extract_document(
+                    text,
+                    document_type
+                )
 
                 if data:
 
@@ -628,10 +555,12 @@ if uploaded_files:
 
                     for field, value in data.items():
 
-                        rows.append([
-                            field,
-                            value if value else "Không tìm thấy"
-                        ])
+                        if value is None:
+                            value = "Không tìm thấy"
+
+                        rows.append(
+                            [field, value]
+                        )
 
                     df = pd.DataFrame(
                         rows,
@@ -654,38 +583,26 @@ if uploaded_files:
                 else:
 
                     st.warning(
-                        "Chưa có bộ nhận diện phù hợp "
-                        "cho chứng từ này."
+                        "Chưa có mẫu trích xuất cho "
+                        "loại chứng từ này."
                     )
 
-                # Cho xem text
+                # -------------------------
+                # XEM TEXT
+                # -------------------------
 
                 with st.expander(
-                    "📖 Xem nội dung PDF hệ thống đã đọc"
+                    "📖 Xem nội dung hệ thống đọc được"
                 ):
 
                     st.text_area(
-                        "Nội dung",
-                        all_text,
-                        height=300,
-                        key=f"text_{file.name}"
+                        "OCR / PDF Text",
+                        text,
+                        height=400
                     )
 
-            except Exception as e:
+            else:
 
                 st.error(
-                    f"Không thể đọc {file.name}: {e}"
+                    "Không đọc được nội dung tài liệu."
                 )
-
-
-# =========================================================
-# 12. THÔNG TIN DEMO
-# =========================================================
-
-st.divider()
-
-st.caption(
-    "CustomsDoc Check là công cụ prototype hỗ trợ kiểm soát "
-    "chứng từ trước khai báo hải quan, không thay thế hệ thống "
-    "khai báo chính thức của Hải quan."
-)
