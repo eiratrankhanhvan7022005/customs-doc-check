@@ -2522,9 +2522,8 @@ if uploaded_files:
         st.session_state.documents_data = documents
 
 
-
 # =========================================================
-# 21. CROSS CHECK - DOCUMENT CONTROL
+# 21. CROSS CHECK
 # =========================================================
 
 documents = st.session_state.get(
@@ -2532,109 +2531,14 @@ documents = st.session_state.get(
     {}
 )
 
+
 if documents:
 
-    st.markdown("""
-    <div class="section-header">
-        <div>
-            <div class="section-eyebrow">DOCUMENT CONTROL</div>
-            <div class="section-title">Kiểm tra chéo dữ liệu</div>
-            <div class="section-desc">
-                Đối chiếu thông tin giữa các chứng từ để phát hiện sai lệch
-                trước khi chuẩn bị dữ liệu khai báo hải quan.
-            </div>
-        </div>
-        <div class="section-status">
-            ● ĐANG KIỂM TRA
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.divider()
 
-    # -----------------------------------------------------
-    # DOCUMENT SUMMARY
-    # -----------------------------------------------------
-
-    doc_types = []
-
-    for _, doc in documents.items():
-
-        if isinstance(doc, dict):
-
-            doc_type = doc.get(
-                "Document Type",
-                doc.get(
-                    "document_type",
-                    "DOCUMENT"
-                )
-            )
-
-            doc_types.append(doc_type)
-
-    doc_count = len(documents)
-    type_count = len(set(doc_types))
-
-    s1, s2, s3 = st.columns(3)
-
-    with s1:
-        st.markdown(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">BỘ CHỨNG TỪ</div>
-                <div class="mini-value">{doc_count}</div>
-                <div class="mini-note">
-                    chứng từ đã tải lên
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with s2:
-        st.markdown(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">LOẠI CHỨNG TỪ</div>
-                <div class="mini-value">{type_count}</div>
-                <div class="mini-note">
-                    loại chứng từ được nhận diện
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with s3:
-        if len(documents) >= 2:
-
-            status_text = "SẴN SÀNG"
-            status_class = "status-ready"
-
-        else:
-
-            status_text = "CHƯA ĐỦ"
-            status_class = "status-warning"
-
-        st.markdown(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">TRẠNG THÁI</div>
-                <div class="mini-status {status_class}">
-                    ● {status_text}
-                </div>
-                <div class="mini-note">
-                    điều kiện kiểm tra chéo
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    st.markdown("<div style='height:18px'></div>",
-                unsafe_allow_html=True)
-
-    # -----------------------------------------------------
-    # CROSS CHECK
-    # -----------------------------------------------------
+    st.header(
+        "🔄 Kiểm tra chéo dữ liệu"
+    )
 
     if len(documents) >= 2:
 
@@ -2643,6 +2547,12 @@ if documents:
         )
 
         if not cross_df.empty:
+
+            st.dataframe(
+                cross_df,
+                use_container_width=True,
+                hide_index=True
+            )
 
             # Metrics
             matched = len(
@@ -2663,263 +2573,34 @@ if documents:
                 ]
             )
 
-            total_checks = (
-                matched +
-                mismatch +
+            c1, c2, c3 = st.columns(3)
+
+            c1.metric(
+                "✅ Khớp",
+                matched
+            )
+
+            c2.metric(
+                "❌ Không khớp",
+                mismatch
+            )
+
+            c3.metric(
+                "⚠️ Cần kiểm tra",
                 warning
-            )
-
-            # -------------------------------------------------
-            # RESULT HEADER
-            # -------------------------------------------------
-
-            st.markdown("""
-            <div class="result-heading">
-                <div>
-                    <div class="result-title">
-                        Kết quả đối chiếu
-                    </div>
-                    <div class="result-desc">
-                        Hệ thống so sánh các trường dữ liệu có thể
-                        đối chiếu giữa các chứng từ.
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # -------------------------------------------------
-            # KPI CARDS
-            # -------------------------------------------------
-
-            c1, c2, c3, c4 = st.columns(4)
-
-            with c1:
-                st.markdown(
-                    f"""
-                    <div class="check-card check-green">
-                        <div class="check-label">
-                            KHỚP
-                        </div>
-                        <div class="check-number">
-                            {matched}
-                        </div>
-                        <div class="check-sub">
-                            trường dữ liệu
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            with c2:
-                st.markdown(
-                    f"""
-                    <div class="check-card check-red">
-                        <div class="check-label">
-                            KHÔNG KHỚP
-                        </div>
-                        <div class="check-number">
-                            {mismatch}
-                        </div>
-                        <div class="check-sub">
-                            cần xử lý
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            with c3:
-                st.markdown(
-                    f"""
-                    <div class="check-card check-yellow">
-                        <div class="check-label">
-                            CẦN KIỂM TRA
-                        </div>
-                        <div class="check-number">
-                            {warning}
-                        </div>
-                        <div class="check-sub">
-                            cần xác nhận
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            with c4:
-
-                if total_checks > 0:
-
-                    score = round(
-                        matched /
-                        total_checks *
-                        100
-                    )
-
-                else:
-
-                    score = 0
-
-                st.markdown(
-                    f"""
-                    <div class="check-card check-blue">
-                        <div class="check-label">
-                            MỨC ĐỘ KHỚP
-                        </div>
-                        <div class="check-number">
-                            {score}%
-                        </div>
-                        <div class="check-sub">
-                            trên tổng lượt kiểm tra
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            st.markdown(
-                "<div style='height:18px'></div>",
-                unsafe_allow_html=True
-            )
-
-            # -------------------------------------------------
-            # PROGRESS
-            # -------------------------------------------------
-
-            if total_checks > 0:
-
-                progress = (
-                    matched /
-                    total_checks
-                )
-
-            else:
-
-                progress = 0
-
-            st.markdown("""
-            <div class="progress-title">
-                Mức độ dữ liệu khớp giữa chứng từ
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.progress(progress)
-
-            st.markdown(
-                f"""
-                <div class="progress-note">
-                    {matched} / {total_checks}
-                    lượt kiểm tra đang ở trạng thái KHỚP
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            st.markdown(
-                "<div style='height:18px'></div>",
-                unsafe_allow_html=True
-            )
-
-            # -------------------------------------------------
-            # TABLE
-            # -------------------------------------------------
-
-            st.markdown("""
-            <div class="table-card">
-                <div class="table-card-header">
-                    <div>
-                        <div class="table-title">
-                            Chi tiết đối chiếu
-                        </div>
-                        <div class="table-subtitle">
-                            Kiểm tra từng trường dữ liệu giữa các chứng từ
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            st.dataframe(
-                cross_df,
-                use_container_width=True,
-                hide_index=True,
-                height=430
-            )
-
-            st.markdown("</div>",
-                        unsafe_allow_html=True)
-
-            # -------------------------------------------------
-            # INTERPRETATION
-            # -------------------------------------------------
-
-            if mismatch > 0:
-
-                st.error(
-                    f"Phát hiện {mismatch} trường dữ liệu "
-                    "không khớp. Cần kiểm tra lại chứng từ "
-                    "gốc trước khi sử dụng dữ liệu khai báo."
-                )
-
-            elif warning > 0:
-
-                st.warning(
-                    f"Có {warning} trường cần kiểm tra hoặc "
-                    "xác nhận thêm trước khi khai báo."
-                )
-
-            else:
-
-                st.success(
-                    "Các trường dữ liệu được kiểm tra hiện "
-                    "đang khớp giữa các chứng từ."
-                )
-
-            # -------------------------------------------------
-            # DOWNLOAD
-            # -------------------------------------------------
-
-            csv = cross_df.to_csv(
-                index=False
-            ).encode("utf-8-sig")
-
-            st.download_button(
-                label="↓  Xuất kết quả kiểm tra",
-                data=csv,
-                file_name="cross_check_report.csv",
-                mime="text/csv"
             )
 
         else:
 
-            st.markdown("""
-            <div class="empty-card">
-                <div class="empty-icon">◎</div>
-                <div class="empty-title">
-                    Chưa có dữ liệu để đối chiếu
-                </div>
-                <div class="empty-text">
-                    Hệ thống chưa tìm thấy đủ các trường dữ liệu
-                    có thể so sánh giữa các chứng từ.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.info(
+                "Chưa có đủ trường dữ liệu để thực hiện kiểm tra chéo."
+            )
 
     else:
 
-        st.markdown("""
-        <div class="empty-card">
-            <div class="empty-icon">＋</div>
-            <div class="empty-title">
-                Chưa đủ chứng từ để kiểm tra
-            </div>
-            <div class="empty-text">
-                Vui lòng tải lên ít nhất 2 loại chứng từ,
-                ví dụ Commercial Invoice và Bill of Lading,
-                để thực hiện đối chiếu dữ liệu.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info(
+            "Cần ít nhất 2 loại chứng từ để kiểm tra chéo."
+        )
 
 
 # =========================================================
@@ -2928,232 +2609,26 @@ if documents:
 
 if documents:
 
-    st.markdown(
-        "<div style='height:35px'></div>",
-        unsafe_allow_html=True
+    st.divider()
+
+    st.header(
+        "📋 Thông tin hỗ trợ khai báo hải quan"
     )
-
-    st.markdown("""
-    <div class="section-header">
-        <div>
-            <div class="section-eyebrow">
-                CUSTOMS PREPARATION
-            </div>
-
-            <div class="section-title">
-                Thông tin hỗ trợ khai báo hải quan
-            </div>
-
-            <div class="section-desc">
-                Tổng hợp các trường dữ liệu quan trọng từ bộ chứng từ
-                nhằm hỗ trợ chuẩn bị thông tin trước khi khai báo.
-            </div>
-        </div>
-
-        <div class="section-status">
-            ● PRE-CHECK
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     customs_df = build_customs_data(
         documents
     )
 
-    # -----------------------------------------------------
-    # CUSTOMS SUMMARY
-    # -----------------------------------------------------
-
-    total_fields = len(customs_df)
-
-    if total_fields > 0:
-
-        found_count = 0
-
-        for col in customs_df.columns:
-
-            if col in [
-                "Trường dữ liệu",
-                "Field",
-                "Nguồn"
-            ]:
-                continue
-
-            values = customs_df[col].astype(str)
-
-            found_count += (
-                ~values.str.contains(
-                    "Không tìm thấy",
-                    case=False,
-                    na=False
-                )
-            ).sum()
-
-    else:
-
-        found_count = 0
-
-    total_cells = (
-        customs_df.shape[0] *
-        customs_df.shape[1]
-    )
-
-    completion = (
-        round(
-            found_count /
-            total_cells *
-            100
-        )
-        if total_cells > 0
-        else 0
-    )
-
-    a1, a2, a3 = st.columns(3)
-
-    with a1:
-
-        st.markdown(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">
-                    TRƯỜNG DỮ LIỆU
-                </div>
-
-                <div class="mini-value">
-                    {customs_df.shape[0]}
-                </div>
-
-                <div class="mini-note">
-                    trường hỗ trợ khai báo
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with a2:
-
-        st.markdown(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">
-                    CHỨNG TỪ NGUỒN
-                </div>
-
-                <div class="mini-value">
-                    {len(documents)}
-                </div>
-
-                <div class="mini-note">
-                    được sử dụng để tổng hợp
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with a3:
-
-        st.markdown(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">
-                    MỨC ĐỘ ĐẦY ĐỦ
-                </div>
-
-                <div class="mini-value">
-                    {completion}%
-                </div>
-
-                <div class="mini-note">
-                    dữ liệu đã được nhận diện
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    st.markdown(
-        "<div style='height:18px'></div>",
-        unsafe_allow_html=True
-    )
-
-    # -----------------------------------------------------
-    # CUSTOMS TABLE
-    # -----------------------------------------------------
-
-    st.markdown("""
-    <div class="table-card">
-
-        <div class="table-card-header">
-
-            <div>
-                <div class="table-title">
-                    Bảng dữ liệu hỗ trợ khai báo
-                </div>
-
-                <div class="table-subtitle">
-                    Dữ liệu được tổng hợp tự động từ các chứng từ
-                    đã tải lên hệ thống
-                </div>
-            </div>
-
-        </div>
-
-    """, unsafe_allow_html=True)
-
     st.dataframe(
         customs_df,
         use_container_width=True,
-        hide_index=True,
-        height=500
+        hide_index=True
     )
 
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True
-    )
-
-    # -----------------------------------------------------
-    # NOTICE
-    # -----------------------------------------------------
-
-    st.markdown("""
-    <div class="notice-box">
-
-        <div class="notice-title">
-            Lưu ý nghiệp vụ
-        </div>
-
-        <div class="notice-text">
-            Dữ liệu trên được hệ thống tự động trích xuất và
-            tổng hợp từ bộ chứng từ đã tải lên. Các trường
-            <b>“Không tìm thấy”</b> hoặc dữ liệu có cảnh báo
-            cần được kiểm tra và xác nhận trước khi sử dụng
-            cho khai báo hải quan chính thức.
-        </div>
-
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(
-        "<div style='height:12px'></div>",
-        unsafe_allow_html=True
-    )
-
-    # -----------------------------------------------------
-    # DOWNLOAD
-    # -----------------------------------------------------
-
-    customs_csv = customs_df.to_csv(
-        index=False
-    ).encode("utf-8-sig")
-
-    st.download_button(
-        label="↓  Xuất dữ liệu hỗ trợ khai báo",
-        data=customs_csv,
-        file_name="customs_declaration_support.csv",
-        mime="text/csv"
+    st.info(
+        "Các trường trên được tổng hợp từ chứng từ đã tải lên. "
+        "Những trường không có dữ liệu sẽ hiển thị 'Không tìm thấy' "
+        "và cần người khai kiểm tra/bổ sung."
     )
 
 
@@ -3164,11 +2639,5 @@ if documents:
 st.divider()
 
 st.caption(
-    "Customs Document Check · Document Control Prototype"
-)
-
-st.caption(
-    "Automated document extraction · "
-    "Cross-document validation · "
-    "Customs declaration support"
+    "Customs Document Check – Prototype phục vụ nghiên cứu kiểm soát chứng từ."
 )
