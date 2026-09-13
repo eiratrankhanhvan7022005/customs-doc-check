@@ -2522,7 +2522,7 @@ if uploaded_files:
         st.session_state.documents_data = documents
 
 
-)
+
 # =========================================================
 # 21. CROSS CHECK - DOCUMENT CONTROL
 # =========================================================
