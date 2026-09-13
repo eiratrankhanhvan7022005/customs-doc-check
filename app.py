@@ -3161,25 +3161,14 @@ if documents:
 # 23. FOOTER
 # =========================================================
 
-st.markdown(
-    "<div style='height:45px'></div>",
-    unsafe_allow_html=True
+st.divider()
+
+st.caption(
+    "Customs Document Check · Document Control Prototype"
 )
 
-st.markdown("""
-<div class="app-footer">
-
-    <div class="footer-main">
-        <b>Customs Document Check</b>
-        <span>·</span>
-        Document Control Prototype
-    </div>
-
-    <div class="footer-sub">
-        Automated document extraction
-        · Cross-document validation
-        · Customs declaration support
-    </div>
-
-</div>
-""", unsafe_allow_html=True)
+st.caption(
+    "Automated document extraction · "
+    "Cross-document validation · "
+    "Customs declaration support"
+)
