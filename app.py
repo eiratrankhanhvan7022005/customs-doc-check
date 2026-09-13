@@ -16,7 +16,261 @@ st.set_page_config(
     page_icon="📄",
     layout="wide"
 )
+# =========================================================
+# PRO UI STYLE
+# =========================================================
 
+st.markdown("""
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+.stApp {
+    background: #f5f7fb;
+}
+
+/* ---------- SIDEBAR ---------- */
+
+section[data-testid="stSidebar"] {
+    background: #0f1f35;
+    border-right: 1px solid #1d3557;
+}
+
+section[data-testid="stSidebar"] * {
+    color: #e8eef7 !important;
+}
+
+.sidebar-logo {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    padding: 10px 5px 5px 5px;
+}
+
+.sidebar-subtitle {
+    font-size: 12px;
+    color: #91a4bd !important;
+    margin-bottom: 30px;
+}
+
+.sidebar-section {
+    font-size: 11px;
+    font-weight: 700;
+    color: #7186a1 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 20px 5px 8px;
+}
+
+/* ---------- MAIN HEADER ---------- */
+
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.page-title {
+    font-size: 31px;
+    font-weight: 800;
+    color: #10243e;
+    letter-spacing: -1px;
+}
+
+.page-subtitle {
+    color: #718096;
+    font-size: 14px;
+    margin-bottom: 28px;
+}
+
+/* ---------- STATUS ---------- */
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.status-green {
+    background: #e7f7ef;
+    color: #138a52;
+}
+
+.status-yellow {
+    background: #fff5d8;
+    color: #a56a00;
+}
+
+.status-red {
+    background: #fdeaea;
+    color: #c53030;
+}
+
+/* ---------- KPI ---------- */
+
+.kpi-card {
+    background: white;
+    border: 1px solid #e5eaf1;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 3px 12px rgba(15, 31, 53, 0.04);
+    min-height: 120px;
+}
+
+.kpi-label {
+    color: #718096;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.kpi-value {
+    color: #10243e;
+    font-size: 29px;
+    font-weight: 800;
+    margin-top: 8px;
+}
+
+.kpi-note {
+    color: #91a0b2;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+/* ---------- SECTION ---------- */
+
+.section-title {
+    color: #10243e;
+    font-size: 19px;
+    font-weight: 750;
+    margin-top: 28px;
+    margin-bottom: 5px;
+}
+
+.section-description {
+    color: #718096;
+    font-size: 13px;
+    margin-bottom: 15px;
+}
+
+/* ---------- UPLOAD ---------- */
+
+.upload-box {
+    background: white;
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    margin: 10px 0 25px;
+}
+
+.upload-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+}
+
+.upload-title {
+    color: #10243e;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.upload-description {
+    color: #718096;
+    font-size: 13px;
+}
+
+/* ---------- DOCUMENT CARD ---------- */
+
+.doc-card {
+    background: white;
+    border: 1px solid #e5eaf1;
+    border-radius: 14px;
+    padding: 17px;
+    margin-bottom: 12px;
+    box-shadow: 0 3px 10px rgba(15, 31, 53, 0.035);
+}
+
+.doc-icon {
+    font-size: 25px;
+}
+
+.doc-name {
+    color: #10243e;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.doc-type {
+    color: #718096;
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+/* ---------- INFO BOX ---------- */
+
+.info-card {
+    background: #edf5ff;
+    border: 1px solid #cfe2ff;
+    border-radius: 13px;
+    padding: 16px 18px;
+    color: #24527a;
+    font-size: 13px;
+}
+
+/* ---------- TABLE ---------- */
+
+div[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* ---------- BUTTON ---------- */
+
+.stButton > button {
+    border-radius: 9px;
+    font-weight: 650;
+    border: 1px solid #d9e1ec;
+    min-height: 42px;
+}
+
+.stButton > button[kind="primary"] {
+    background: #17365d;
+    border-color: #17365d;
+}
+
+/* ---------- TABS ---------- */
+
+button[data-baseweb="tab"] {
+    font-weight: 600;
+}
+
+/* ---------- FILE UPLOADER ---------- */
+
+[data-testid="stFileUploader"] {
+    background: white;
+    border-radius: 14px;
+    padding: 5px;
+}
+
+/* ---------- FOOTER ---------- */
+
+.footer {
+    text-align: center;
+    color: #9aa8b8;
+    font-size: 11px;
+    padding: 35px 0 15px;
+}
+
+</style>
+""", unsafe_allow_html=True)
 EMPTY = "Không tìm thấy"
 
 
@@ -2305,20 +2559,73 @@ def build_customs_data(documents):
 
 
 # =========================================================
-# 20. STREAMLIT UI
+# 20. PROFESSIONAL STREAMLIT UI
 # =========================================================
 
-st.title(
-    "📄 Customs Document Check"
-)
+# ---------- SIDEBAR ----------
 
-st.caption(
-    "Tự động đọc chứng từ PDF → trích xuất dữ liệu → kiểm tra chéo → hỗ trợ chuẩn bị thông tin khai báo hải quan."
-)
+with st.sidebar:
 
-st.info(
-    "Lưu ý: Đây là công cụ demo hỗ trợ kiểm tra chứng từ. "
-    "Hệ thống không trực tiếp khai hoặc gửi tờ khai lên VNACCS/VCIS."
+    st.markdown(
+        """
+        <div class="sidebar-logo">
+            ◈ CustomsDoc
+        </div>
+
+        <div class="sidebar-subtitle">
+            Document Control Platform
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="sidebar-section">WORKSPACE</div>',
+        unsafe_allow_html=True
+    )
+
+    menu = st.radio(
+        "",
+        [
+            "◉  Dashboard",
+            "▣  Chứng từ",
+            "⇄  Kiểm tra chéo",
+            "▤  Hỗ trợ khai báo",
+            "◫  Báo cáo"
+        ],
+        label_visibility="collapsed"
+    )
+
+    st.markdown(
+        '<div class="sidebar-section">SYSTEM</div>',
+        unsafe_allow_html=True
+    )
+
+    st.caption("Prototype v1.0")
+    st.caption("U&I Logistics Research")
+
+
+# ---------- HEADER ----------
+
+st.markdown(
+    """
+    <div class="main-header">
+        <div>
+            <div class="page-title">
+                Document Control Center
+            </div>
+
+            <div class="page-subtitle">
+                Kiểm soát chứng từ xuất nhập khẩu & hỗ trợ khai báo hải quan
+            </div>
+        </div>
+
+        <div class="status-pill status-green">
+            ● SYSTEM ONLINE
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -2326,37 +2633,57 @@ st.info(
 # UPLOAD
 # =========================================================
 
+st.markdown(
+    """
+    <div class="section-title">
+        Upload bộ chứng từ
+    </div>
+
+    <div class="section-description">
+        Tải lên Invoice, Packing List, Bill of Lading, C/O hoặc Booking.
+        Hệ thống sẽ tự động nhận diện và trích xuất dữ liệu.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
 uploaded_files = st.file_uploader(
-    "📄 Tải lên bộ chứng từ PDF",
+    "PDF documents",
     type=["pdf"],
-    accept_multiple_files=True
+    accept_multiple_files=True,
+    label_visibility="collapsed"
 )
 
 
 if uploaded_files:
 
-    st.subheader("📁 Danh sách chứng từ")
+    st.markdown(
+        f"""
+        <div class="info-card">
+            📎 Đã chọn <b>{len(uploaded_files)}</b> chứng từ.
+            Nhấn <b>Phân tích chứng từ</b> để bắt đầu.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    for file in uploaded_files:
-
-        st.write(
-            f"📄 **{file.name}**"
-        )
+    st.write("")
 
     if st.button(
-        "🔍 Đọc và trích xuất dữ liệu",
-        type="primary"
+        "🔍  Phân tích chứng từ",
+        type="primary",
+        use_container_width=True
     ):
 
         documents = {}
+        file_results = []
 
-        for file in uploaded_files:
+        progress = st.progress(0)
 
-            st.divider()
-
-            st.subheader(
-                f"📄 {file.name}"
-            )
+        for index, file in enumerate(
+            uploaded_files
+        ):
 
             file_bytes = file.getvalue()
 
@@ -2365,81 +2692,23 @@ if uploaded_files:
             )
 
             if error:
-
-                st.error(
-                    f"Lỗi đọc file: {error}"
-                )
-
                 continue
 
-            st.write(
-                f"**Số trang:** {page_count}"
-            )
-
-            st.write(
-                f"**Phương pháp đọc:** {method}"
-            )
-
-            full_text = "\n".join(
-                pages
-            )
-
-            if not full_text.strip():
-
-                st.warning(
-                    "Không đọc được văn bản."
-                )
-
-                continue
-
-            # ----------------------------------------
-            # Detect type
-            # ----------------------------------------
+            full_text = "\n".join(pages)
 
             document_type, scores = detect_document_type(
                 full_text,
                 file.name
             )
 
-            st.write(
-                f"### Loại chứng từ: {document_type}"
-            )
-
-            # ----------------------------------------
-            # Scores
-            # ----------------------------------------
-
-            score_df = pd.DataFrame(
-                [
-                    {
-                        "Loại chứng từ": k,
-                        "Điểm nhận diện": v
-                    }
-                    for k, v in scores.items()
-                ]
-            ).sort_values(
-                "Điểm nhận diện",
-                ascending=False
-            )
-
-            with st.expander(
-                "🔎 Xem điểm nhận diện"
-            ):
-
-                st.dataframe(
-                    score_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-            # ----------------------------------------
-            # Extract
-            # ----------------------------------------
-
             extracted = extract_document(
                 document_type,
                 full_text
             )
+
+            # ------------------------------------
+            # Nếu nhiều file cùng loại
+            # ------------------------------------
 
             if document_type not in documents:
 
@@ -2449,8 +2718,6 @@ if uploaded_files:
 
             else:
 
-                # Nếu nhiều file cùng loại
-                # ưu tiên file có nhiều dữ liệu hơn
                 old_count = sum(
                     1
                     for v in documents[
@@ -2479,13 +2746,301 @@ if uploaded_files:
                         document_type
                     ] = extracted
 
-            # ----------------------------------------
-            # Show extraction
-            # ----------------------------------------
+            file_results.append({
+                "file": file.name,
+                "type": document_type,
+                "pages": page_count,
+                "method": method,
+                "data": extracted,
+                "raw_text": full_text
+            })
+
+            progress.progress(
+                (index + 1) / len(uploaded_files)
+            )
+
+        st.session_state.documents_data = documents
+        st.session_state.file_results = file_results
+
+        st.success(
+            "Phân tích chứng từ hoàn tất."
+        )
+
+
+# =========================================================
+# DATA
+# =========================================================
+
+documents = st.session_state.get(
+    "documents_data",
+    {}
+)
+
+file_results = st.session_state.get(
+    "file_results",
+    []
+)
+
+
+# =========================================================
+# DASHBOARD KPI
+# =========================================================
+
+total_docs = len(file_results)
+
+processed_docs = sum(
+    1
+    for item in file_results
+    if item["data"]
+)
+
+matched_count = 0
+warning_count = 0
+mismatch_count = 0
+
+if len(documents) >= 2:
+
+    cross_df_temp = cross_check_documents(
+        documents
+    )
+
+    if not cross_df_temp.empty:
+
+        matched_count = len(
+            cross_df_temp[
+                cross_df_temp["Trạng thái"] == "KHỚP"
+            ]
+        )
+
+        warning_count = len(
+            cross_df_temp[
+                cross_df_temp["Trạng thái"] == "CẦN KIỂM TRA"
+            ]
+        )
+
+        mismatch_count = len(
+            cross_df_temp[
+                cross_df_temp["Trạng thái"] == "KHÔNG KHỚP"
+            ]
+        )
+
+
+st.markdown(
+    '<div class="section-title">Overview</div>',
+    unsafe_allow_html=True
+)
+
+c1, c2, c3, c4 = st.columns(4)
+
+with c1:
+
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+            <div class="kpi-label">
+                TỔNG CHỨNG TỪ
+            </div>
+
+            <div class="kpi-value">
+                {total_docs}
+            </div>
+
+            <div class="kpi-note">
+                PDF được tải lên
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with c2:
+
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+            <div class="kpi-label">
+                ĐÃ TRÍCH XUẤT
+            </div>
+
+            <div class="kpi-value">
+                {processed_docs}
+            </div>
+
+            <div class="kpi-note">
+                Documents processed
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with c3:
+
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+            <div class="kpi-label">
+                KHỚP
+            </div>
+
+            <div class="kpi-value">
+                {matched_count}
+            </div>
+
+            <div class="kpi-note">
+                Cross-check passed
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with c4:
+
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+            <div class="kpi-label">
+                CẦN KIỂM TRA
+            </div>
+
+            <div class="kpi-value">
+                {warning_count + mismatch_count}
+            </div>
+
+            <div class="kpi-note">
+                Warnings & mismatches
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# =========================================================
+# DOCUMENTS
+# =========================================================
+
+if file_results:
+
+    st.markdown(
+        '<div class="section-title">Documents</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """
+        <div class="section-description">
+            Danh sách chứng từ đã được hệ thống nhận diện.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    cols = st.columns(
+        min(3, len(file_results))
+    )
+
+    for index, item in enumerate(file_results):
+
+        col = cols[
+            index % len(cols)
+        ]
+
+        with col:
+
+            doc_type = item["type"]
+
+            icon = "📄"
+
+            if "INVOICE" in doc_type:
+                icon = "🧾"
+
+            elif "PACKING" in doc_type:
+                icon = "📦"
+
+            elif "BILL" in doc_type:
+                icon = "🚢"
+
+            elif "ORIGIN" in doc_type:
+                icon = "🌐"
+
+            elif "BOOKING" in doc_type:
+                icon = "📅"
+
+            st.markdown(
+                f"""
+                <div class="doc-card">
+
+                    <div class="doc-icon">
+                        {icon}
+                    </div>
+
+                    <div class="doc-name">
+                        {item["file"]}
+                    </div>
+
+                    <div class="doc-type">
+                        {doc_type}
+                    </div>
+
+                    <br>
+
+                    <span class="status-pill status-green">
+                        ✓ PROCESSED
+                    </span>
+
+                    <div class="doc-type">
+                        {item["pages"]} page(s)
+                    </div>
+
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+
+# =========================================================
+# RESULT TABS
+# =========================================================
+
+if documents:
+
+    st.markdown(
+        '<div class="section-title">Analysis Center</div>',
+        unsafe_allow_html=True
+    )
+
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "📑 Chi tiết chứng từ",
+            "⇄ Kiểm tra chéo",
+            "📋 Hỗ trợ khai báo",
+            "🔎 Raw Data"
+        ]
+    )
+
+
+    # =====================================================
+    # TAB 1
+    # =====================================================
+
+    with tab1:
+
+        for item in file_results:
+
+            st.markdown(
+                f"### {item['file']}"
+            )
+
+            extracted = item["data"]
 
             if extracted:
 
-                extraction_df = pd.DataFrame(
+                df = pd.DataFrame(
                     [
                         {
                             "Trường dữ liệu": key,
@@ -2496,148 +3051,194 @@ if uploaded_files:
                     ]
                 )
 
-                st.write(
-                    "### 🔎 Chi tiết nhận diện"
-                )
-
                 st.dataframe(
-                    extraction_df,
+                    df,
                     use_container_width=True,
                     hide_index=True
                 )
 
-            # ----------------------------------------
-            # Raw text
-            # ----------------------------------------
 
-            with st.expander(
-                "📖 Xem nội dung PDF đã đọc"
-            ):
+    # =====================================================
+    # TAB 2
+    # =====================================================
 
-                st.text(
-                    full_text
-                )
+    with tab2:
 
-        # Save
-        st.session_state.documents_data = documents
-
-
-# =========================================================
-# 21. CROSS CHECK
-# =========================================================
-
-documents = st.session_state.get(
-    "documents_data",
-    {}
-)
-
-
-if documents:
-
-    st.divider()
-
-    st.header(
-        "🔄 Kiểm tra chéo dữ liệu"
-    )
-
-    if len(documents) >= 2:
-
-        cross_df = cross_check_documents(
-            documents
+        st.markdown(
+            """
+            <div class="section-description">
+                So sánh các trường dữ liệu quan trọng giữa Invoice,
+                Packing List, B/L và các chứng từ liên quan.
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-        if not cross_df.empty:
+        if len(documents) >= 2:
 
-            st.dataframe(
-                cross_df,
-                use_container_width=True,
-                hide_index=True
+            cross_df = cross_check_documents(
+                documents
             )
 
-            # Metrics
-            matched = len(
-                cross_df[
-                    cross_df["Trạng thái"] == "KHỚP"
-                ]
-            )
+            if not cross_df.empty:
 
-            mismatch = len(
-                cross_df[
-                    cross_df["Trạng thái"] == "KHÔNG KHỚP"
-                ]
-            )
+                st.dataframe(
+                    cross_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
 
-            warning = len(
-                cross_df[
-                    cross_df["Trạng thái"] == "CẦN KIỂM TRA"
-                ]
-            )
+                st.write("")
 
-            c1, c2, c3 = st.columns(3)
+                a, b, c = st.columns(3)
 
-            c1.metric(
-                "✅ Khớp",
-                matched
-            )
+                a.metric(
+                    "✓ Khớp",
+                    matched_count
+                )
 
-            c2.metric(
-                "❌ Không khớp",
-                mismatch
-            )
+                b.metric(
+                    "⚠ Cần kiểm tra",
+                    warning_count
+                )
 
-            c3.metric(
-                "⚠️ Cần kiểm tra",
-                warning
-            )
+                c.metric(
+                    "✕ Không khớp",
+                    mismatch_count
+                )
+
+            else:
+
+                st.info(
+                    "Chưa có đủ dữ liệu để kiểm tra chéo."
+                )
 
         else:
 
             st.info(
-                "Chưa có đủ trường dữ liệu để thực hiện kiểm tra chéo."
+                "Tải lên ít nhất 2 loại chứng từ để thực hiện cross-check."
             )
 
-    else:
 
-        st.info(
-            "Cần ít nhất 2 loại chứng từ để kiểm tra chéo."
+    # =====================================================
+    # TAB 3
+    # =====================================================
+
+    with tab3:
+
+        st.markdown(
+            """
+            <div class="section-description">
+                Dữ liệu được tổng hợp từ bộ chứng từ và có thể được
+                sử dụng làm cơ sở chuẩn bị thông tin khai báo.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        customs_df = build_customs_data(
+            documents
+        )
+
+        st.dataframe(
+            customs_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.write("")
+
+        st.warning(
+            "Các giá trị này chỉ là dữ liệu hỗ trợ. "
+            "Người khai hải quan vẫn cần kiểm tra và xác nhận "
+            "trước khi khai chính thức."
         )
 
 
-# =========================================================
-# 22. CUSTOMS DECLARATION SUPPORT
-# =========================================================
+    # =====================================================
+    # TAB 4
+    # =====================================================
 
-if documents:
+    with tab4:
 
-    st.divider()
+        st.markdown(
+            """
+            <div class="section-description">
+                Văn bản gốc được hệ thống đọc từ PDF/OCR.
+                Dùng để kiểm tra khi parser nhận diện chưa chính xác.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-    st.header(
-        "📋 Thông tin hỗ trợ khai báo hải quan"
-    )
+        for item in file_results:
 
-    customs_df = build_customs_data(
-        documents
-    )
+            with st.expander(
+                f"📄 {item['file']}"
+            ):
 
-    st.dataframe(
-        customs_df,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.info(
-        "Các trường trên được tổng hợp từ chứng từ đã tải lên. "
-        "Những trường không có dữ liệu sẽ hiển thị 'Không tìm thấy' "
-        "và cần người khai kiểm tra/bổ sung."
-    )
+                st.text(
+                    item["raw_text"]
+                )
 
 
 # =========================================================
-# 23. FOOTER
+# EMPTY STATE
 # =========================================================
 
-st.divider()
+else:
 
-st.caption(
-    "Customs Document Check – Prototype phục vụ nghiên cứu kiểm soát chứng từ."
+    st.markdown(
+        """
+        <div style="
+            background:white;
+            border:1px solid #e5eaf1;
+            border-radius:16px;
+            padding:55px;
+            text-align:center;
+            margin-top:25px;
+        ">
+
+            <div style="font-size:48px;">
+                📂
+            </div>
+
+            <div style="
+                font-size:18px;
+                font-weight:750;
+                color:#10243e;
+                margin-top:10px;
+            ">
+                Chưa có chứng từ
+            </div>
+
+            <div style="
+                font-size:13px;
+                color:#718096;
+                margin-top:7px;
+            ">
+                Upload bộ chứng từ PDF để bắt đầu kiểm tra.
+            </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.markdown(
+    """
+    <div class="footer">
+        CustomsDoc Check · Document Control Prototype ·
+        U&I Logistics Research
+        <br>
+        Automated extraction • Cross-document validation •
+        Customs declaration support
+    </div>
+    """,
+    unsafe_allow_html=True
 )
