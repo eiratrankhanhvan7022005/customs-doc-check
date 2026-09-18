@@ -64,6 +64,50 @@ MAX_FILE_SIZE_MB = 20
 MAX_OCR_PAGES = 30
 OCR_DPI = 250
 
+# ============================================================
+# DATABASE KNOWLEDGE
+# ============================================================
+
+@st.cache_data(ttl=300)
+def load_database_aliases():
+    try:
+        result = (
+            supabase
+            .table("field_aliases")
+            .select("*")
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=300)
+def load_database_notations():
+    try:
+        result = (
+            supabase
+            .table("document_notations")
+            .select("*")
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=300)
+def load_database_corrections():
+    try:
+        result = (
+            supabase
+            .table("confirmed_corrections")
+            .select("*")
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        return []
 # =========================================================
 # 2. BASIC HELPERS
 # =========================================================
