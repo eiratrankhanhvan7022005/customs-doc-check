@@ -83,44 +83,46 @@ def save_extracted_fields(sample_id, extracted_data):
     if not sample_id or not extracted_data:
         return
 
-    rows = []
-
-    for field_name, value in extracted_data.items():
-
-        if isinstance(value, list):
-            value = ", ".join(str(x) for x in value)
-
-        raw_value = (
-            str(value)
-            if value is not None
-            else None
-        )
-
-        normalized_value = (
-            normalize_compare(raw_value)
-            if raw_value
-            else None
-        )
-
-        rows.append({
-            "sample_id": sample_id,
-            "field_name": field_name,
-            "raw_value": raw_value,
-            "normalized_value": normalized_value
-        })
-
-    if not rows:
-        return
-
     try:
-        supabase \
-            .table("extracted_fields") \
-            .insert(rows) \
-            .execute()
+        for field_name, value in extracted_data.items():
+
+            if isinstance(value, list):
+                value = ", ".join(str(x) for x in value)
+
+            raw_value = (
+                str(value)
+                if value is not None
+                else None
+            )
+
+            normalized_value = (
+                normalize_compare(raw_value)
+                if raw_value
+                else None
+            )
+
+            result = (
+                supabase
+                .rpc(
+                    "insert_extracted_fields",
+                    {
+                        "p_sample_id": sample_id,
+                        "p_field_name": field_name,
+                        "p_raw_value": raw_value,
+                        "p_normalized_value": normalized_value
+                    }
+                )
+                .execute()
+            )
+
+        st.sidebar.write(
+            "Extracted fields saved:",
+            len(extracted_data)
+        )
 
     except Exception as e:
-        st.warning(
-            f"Không thể lưu extracted fields: {e}"
+        st.sidebar.error(
+            f"EXTRACTED FIELDS ERROR: {type(e).__name__}: {e}"
         )
 # ============================================================
 # KNOWLEDGE BASE
