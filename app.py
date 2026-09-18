@@ -2568,7 +2568,9 @@ def _is_header_only(v, all_aliases):
 def _looks_like_country(v):
     u = _norm_semantic(v)
     known = ["VIETNAM", "VIET NAM", "CHINA", "TAIWAN", "KOREA", "SOUTH KOREA", "JAPAN", "USA", "UNITED STATES", "UNITED KINGDOM", "THAILAND", "MALAYSIA", "INDONESIA", "SINGAPORE", "INDIA", "GERMANY", "FRANCE", "ITALY", "CANADA", "AUSTRALIA", "CAMBODIA", "LAOS", "MYANMAR", "PHILIPPINES"]
-    return any(x in u for x in known) or bool(re.search(r"\b[A-Z]{2}\b", u))
+    # Do not treat arbitrary 2-letter tokens as countries. This caused prose such as
+    # "English in two (02) copy..." to be incorrectly accepted as Country of Origin.
+    return any(re.search(rf"(?<![A-Z0-9]){re.escape(x)}(?![A-Z0-9])", u) for x in known)
 
 
 def _value_valid_for_field(field, value):
@@ -2632,8 +2634,61 @@ def _field_label_hits(line, aliases):
         rx=_alias_regex(a)
         if rx:
             m=rx.search(line)
-            if m: hits.append((m.start(),m.end(),a))
-    return sorted(hits, key=lambda x:(x[0], -(x[1]-x[0])))
+            if m:
+                hits.append((m.start(),m.end(),a))
+    # If aliases overlap at the same position, keep ONLY the longest one.
+    # Example: "Description of Goods" must not also be treated as "Description"
+    # with the value "of Goods".
+    kept=[]
+    for h in sorted(hits, key=lambda x:(x[0], -(x[1]-x[0]))):
+        if any(h[0] == k[0] and h[1] <= k[1] for k in kept):
+            continue
+        kept.append(h)
+    return kept
+
+
+DOCUMENT_FIELD_SCOPE = {
+    "PURCHASE CONTRACT": {
+        "EXPORTER","IMPORTER","CONSIGNEE","CONTRACT_NUMBER","CONTRACT_DATE",
+        "INCOTERMS","PORT_OF_LOADING","PORT_OF_DISCHARGE","COUNTRY_OF_ORIGIN",
+        "SHIPMENT_TIME","DESCRIPTION","PO_NUMBER","QUANTITY","UNIT_PRICE",
+        "TOTAL_AMOUNT","CURRENCY","PAYMENT_TERMS"
+    },
+    "COMMERCIAL INVOICE": {
+        "EXPORTER","IMPORTER","CONSIGNEE","INVOICE_NUMBER","INVOICE_DATE","CONTRACT_NUMBER",
+        "CONTRACT_DATE","BL_NUMBER","INCOTERMS","PORT_OF_LOADING","PORT_OF_DISCHARGE",
+        "COUNTRY_OF_ORIGIN","DESCRIPTION","PO_NUMBER","QUANTITY","PACKAGE_COUNT",
+        "UNIT_PRICE","TOTAL_AMOUNT","CURRENCY","PAYMENT_TERMS","GROSS_WEIGHT","NET_WEIGHT",
+        "MEASUREMENT","HS_CODE","CONTAINER_NUMBER","SEAL_NUMBER"
+    },
+    "PACKING LIST": {
+        "EXPORTER","IMPORTER","CONSIGNEE","INVOICE_NUMBER","CONTRACT_NUMBER","BL_NUMBER",
+        "DESCRIPTION","QUANTITY","PACKAGE_COUNT","GROSS_WEIGHT","NET_WEIGHT","MEASUREMENT",
+        "COUNTRY_OF_ORIGIN","CONTAINER_NUMBER","SEAL_NUMBER","PORT_OF_LOADING","PORT_OF_DISCHARGE",
+        "PO_NUMBER","HS_CODE"
+    },
+    "BILL OF LADING": {
+        "EXPORTER","IMPORTER","CONSIGNEE","NOTIFY_PARTY","BL_NUMBER","INVOICE_NUMBER",
+        "DESCRIPTION","PACKAGE_COUNT","GROSS_WEIGHT","NET_WEIGHT","MEASUREMENT",
+        "CONTAINER_NUMBER","SEAL_NUMBER","VESSEL_VOYAGE","PORT_OF_LOADING","PORT_OF_DISCHARGE",
+        "COUNTRY_OF_ORIGIN","PO_NUMBER","HS_CODE","ETA","ETD","INCOTERMS"
+    },
+    "BOOKING": {
+        "EXPORTER","IMPORTER","CONSIGNEE","BOOKING_NUMBER","VESSEL_VOYAGE","PORT_OF_LOADING",
+        "PORT_OF_DISCHARGE","CONTAINER_NUMBER","SEAL_NUMBER","DESCRIPTION","QUANTITY","PACKAGE_COUNT",
+        "GROSS_WEIGHT","NET_WEIGHT","MEASUREMENT","ETD","ETA","PO_NUMBER"
+    },
+    "CERTIFICATE OF ORIGIN": {
+        "EXPORTER","IMPORTER","CONSIGNEE","COUNTRY_OF_ORIGIN","INVOICE_NUMBER","CONTRACT_NUMBER",
+        "DESCRIPTION","QUANTITY","PACKAGE_COUNT","HS_CODE","PORT_OF_LOADING","PORT_OF_DISCHARGE"
+    },
+    "ARRIVAL NOTICE": {
+        "EXPORTER","IMPORTER","CONSIGNEE","NOTIFY_PARTY","BL_NUMBER","VESSEL_VOYAGE",
+        "PORT_OF_LOADING","PORT_OF_DISCHARGE","CONTAINER_NUMBER","SEAL_NUMBER","DESCRIPTION",
+        "PACKAGE_COUNT","GROSS_WEIGHT","NET_WEIGHT","MEASUREMENT","ETA","ETD","INVOICE_NUMBER",
+        "PO_NUMBER"
+    }
+}
 
 
 def _candidate_score(field, candidate, distance, label, line, document_type):
@@ -2823,6 +2878,10 @@ def _strict_fix_bad_candidates(result, lines, document_type):
             if c:
                 result[out_key] = clean_value(c[0][1])
 
+    # Country of Origin must be an actual country name, never a sentence/prose block.
+    if result.get("Country of Origin") and not _looks_like_country(result["Country of Origin"]):
+        result.pop("Country of Origin", None)
+
     # A value like "Qty UnitPrice Amount" is a header, never a quantity/price/amount.
     for out_key in ("Quantity", "Unit Price", "Total Amount"):
         v = result.get(out_key, EMPTY)
@@ -2842,7 +2901,8 @@ def extract_universal_fields(text, document_type=None):
         return {}
     doc_type=document_type or detect_document_type(text)[0]
     lines=_semantic_lines(text)
-    fields=list(UNIVERSAL_OUTPUT.keys())
+    scope = DOCUMENT_FIELD_SCOPE.get(doc_type, set(UNIVERSAL_OUTPUT.keys()))
+    fields=[f for f in UNIVERSAL_OUTPUT.keys() if f in scope]
     aliases_by_field={f:_universal_aliases(f,doc_type) for f in fields}
     all_aliases=list(dict.fromkeys(a for vals in aliases_by_field.values() for a in vals))
     result={}
@@ -2865,8 +2925,14 @@ def extract_universal_fields(text, document_type=None):
             "PORT_OF_DISCHARGE": lambda: extract_port(text,"discharge"),
         }
         if field in fallback_map:
+            # Legacy fallback is useful only when the document family actually
+            # supports this field. In particular, do not let a generic "No."
+            # detector invent a B/L number on a contract/invoice.
             try:
-                fv=clean_value(fallback_map[field]())
+                if field == "BL_NUMBER" and not re.search(r"\b(?:B/L|BL\s*(?:NO|NUMBER)|BILL OF LADING)\b", text, re.I):
+                    fv = EMPTY
+                else:
+                    fv=clean_value(fallback_map[field]())
                 if fv and _value_valid_for_field(field,fv):
                     candidates.append((45,fv,999,"fallback","fallback"))
             except Exception:
@@ -2922,6 +2988,8 @@ def extract_universal_fields(text, document_type=None):
             result["Vessel / Voyage"]=vessel
         elif voyage:
             result["Vessel / Voyage"]=voyage
+
+    result = _strict_fix_bad_candidates(result, lines, doc_type)
 
     return result
 
