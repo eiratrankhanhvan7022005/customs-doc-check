@@ -2505,47 +2505,159 @@ def detect_document_type(text, filename=""):
     return doc_type, scores
 
 
-def _extract_labeled_value_universal(text, aliases, stop_aliases=None):
-    return extract_value_after_label(text, aliases, stop_aliases=stop_aliases)
+def _line_label_value_candidates(line, aliases):
+    """Trả về các ứng viên value trên cùng một dòng, ưu tiên alias dài nhất."""
+    current = str(line or "").strip()
+    if not current:
+        return []
+
+    aliases = [str(a).strip() for a in aliases if str(a).strip()]
+    aliases = sorted(set(aliases), key=len, reverse=True)
+    out = []
+
+    for alias in aliases:
+        # Không cho alias ngắn match vào giữa một label dài hơn.
+        m = re.match(
+            rf"^\s*{re.escape(alias)}(?=\s|:|#|-|$)(.*)$",
+            current,
+            re.I,
+        )
+        if not m:
+            continue
+
+        rest = m.group(1).strip()
+        rest = re.sub(r"^[\s:#\-]+", "", rest).strip()
+        out.append((alias, rest))
+        break
+
+    return out
 
 
-def _extract_party_universal(text, aliases, stop_aliases):
-    value = _extract_labeled_value_universal(text, aliases, stop_aliases)
-    if value != EMPTY:
-        return value
-    # Generic block reader for layouts where the party label is followed by several lines.
-    safe_labels = [str(x) for x in aliases if normalize_label_for_learning(x) not in {"SHIPPER", "CONSIGNEE"}]
-    return extract_labeled_block(text, safe_labels, stop_aliases, max_lines=4)
+def _is_probable_field_header(value, all_aliases):
+    """Loại các dòng tiêu đề bảng kiểu 'Quantity UnitPrice Amount'."""
+    if not value:
+        return True
+    u = normalize_label_for_learning(value)
+    if not u:
+        return True
+
+    normalized_aliases = {
+        normalize_label_for_learning(a)
+        for a in all_aliases
+        if normalize_label_for_learning(a)
+    }
+    tokens = re.findall(r"[A-Za-z][A-Za-z./#'_-]*", value)
+    hits = 0
+    for token in tokens:
+        if normalize_label_for_learning(token) in normalized_aliases:
+            hits += 1
+    if hits >= 2:
+        return True
+
+    # Một số heading ghép phổ biến của bảng hàng hóa.
+    if re.search(r"\b(Unit\s*Price|Amount|Amounts|Description|Quantity)\b", value, re.I):
+        if not re.search(r"\d", value):
+            return True
+    return False
 
 
-def _extract_money_after_label(text, aliases):
-    value = _extract_labeled_value_universal(text, aliases)
-    if value != EMPTY:
-        return value
-    pattern = build_alias_pattern(aliases)
-    if pattern:
-        m = re.search(rf"(?i)(?:{pattern})[^\n\r]{{0,120}}?((?:USD|EUR|CNY|RMB|VND|JPY|KRW)\s*)?([\d,]+(?:\.\d+)?)", text)
-        if m:
-            return clean_value((m.group(1) or "") + m.group(2))
+def _clean_universal_candidate(value, field, all_aliases):
+    value = clean_value(value)
+    if not value or value == EMPTY:
+        return EMPTY
+    if _is_probable_field_header(value, all_aliases):
+        return EMPTY
+
+    # Không lấy label kế tiếp dính vào value.
+    for alias in sorted(all_aliases, key=len, reverse=True):
+        if normalize_label_for_learning(alias) == normalize_label_for_learning(value):
+            return EMPTY
+
+    # Buyer/Seller OCR đôi khi bị cắt ở cuối dòng; giữ nguyên dòng đầy đủ,
+    # chỉ loại các dấu phân cách thừa ở đầu/cuối.
+    return value.strip(" |;,-")
+
+
+def _extract_labeled_value_universal(text, aliases, stop_aliases=None, field=None, all_aliases=None):
+    """Đọc value theo label nhưng không nhận nhầm header của bảng thành dữ liệu."""
+    if not text or not aliases:
+        return EMPTY
+
+    all_aliases = all_aliases or aliases
+    stop_aliases = stop_aliases or []
+    lines = get_lines(text)
+    label_pattern = build_alias_pattern(aliases)
+    stop_pattern = build_alias_pattern(stop_aliases)
+
+    if not label_pattern:
+        return EMPTY
+
+    for i, line in enumerate(lines):
+        current = line.strip()
+        if not current:
+            continue
+
+        # 1) Label + value trên cùng dòng.
+        candidates = _line_label_value_candidates(current, aliases)
+        if candidates:
+            _, rest = candidates[0]
+            candidate = _clean_universal_candidate(rest, field, all_aliases)
+            if candidate != EMPTY:
+                # Nếu value còn chứa label kế tiếp thì cắt tại label đó.
+                if stop_pattern:
+                    mstop = re.search(
+                        rf"\s+(?:{stop_pattern})\s*(?::|#|-|\s|$)",
+                        candidate,
+                        re.I,
+                    )
+                    if mstop:
+                        candidate = candidate[:mstop.start()].strip()
+                candidate = _clean_universal_candidate(candidate, field, all_aliases)
+                if candidate != EMPTY:
+                    return candidate
+
+        # 2) Label đứng riêng, value nằm dòng kế tiếp.
+        if re.match(rf"^\s*(?:{label_pattern})\s*(?::|#|-)?\s*$", current, re.I):
+            for j in range(i + 1, min(i + 5, len(lines))):
+                nxt = lines[j].strip()
+                if not nxt:
+                    continue
+                if stop_pattern and re.match(
+                    rf"^\s*(?:{stop_pattern})\s*(?::|#|-|\s|$)", nxt, re.I
+                ):
+                    break
+                candidate = _clean_universal_candidate(nxt, field, all_aliases)
+                if candidate != EMPTY:
+                    return candidate
+
     return EMPTY
 
 
-def _extract_date_after_label(text, aliases):
-    value = _extract_labeled_value_universal(text, aliases)
-    if value != EMPTY:
-        return value
-    return EMPTY
+def _extract_contract_context(text, all_aliases):
+    """Fallback ngữ cảnh cho Purchase Contract, không phụ thuộc template cụ thể."""
+    result = {}
+    lines = get_lines(text)
 
+    def first_line(labels):
+        pattern = build_alias_pattern(labels)
+        if not pattern:
+            return EMPTY
+        for line in lines:
+            m = re.match(rf"^\s*(?:{pattern})\s*(?::|#|-)?\s*(.+?)\s*$", line, re.I)
+            if m:
+                value = _clean_universal_candidate(m.group(1), None, all_aliases)
+                if value != EMPTY:
+                    return value
+        return EMPTY
 
-def _extract_description_universal(text):
-    value = _extract_labeled_value_universal(
-        text,
-        _universal_aliases("DESCRIPTION"),
-        stop_aliases=_universal_aliases("QUANTITY") + _universal_aliases("UNIT_PRICE") + _universal_aliases("TOTAL_AMOUNT")
-    )
-    if value != EMPTY:
-        return value
-    return extract_invoice_description(text)
+    result["EXPORTER"] = first_line(["Seller", "Seller Name", "Exporter", "Supplier", "Vendor"])
+    result["IMPORTER"] = first_line(["Buyer", "Buyer Name", "Importer", "Purchaser"])
+    result["QUANTITY"] = first_line(["Qty", "QTY", "Quantity", "Quantity of Goods"])
+    result["UNIT_PRICE"] = first_line(["Unit Price", "Unit Prices", "Price per Unit", "Unit Cost"])
+    result["TOTAL_AMOUNT"] = first_line(["Amounts", "Amount", "Total Amount", "Grand Total", "Total Value"])
+    result["PAYMENT_TERMS"] = first_line(["Payment", "Payment Terms", "Terms of Payment"])
+    result["SHIPMENT_TIME"] = first_line(["Shipment", "Time of Shipment", "Shipment Date"])
+    return result
 
 
 def extract_universal_fields(text, document_type=None):
@@ -2564,62 +2676,77 @@ def extract_universal_fields(text, document_type=None):
     def put(field, value):
         if value in [None, "", EMPTY]:
             return
-        result[UNIVERSAL_OUTPUT[field]] = clean_value(value)
+        value = clean_value(value)
+        if value and value != EMPTY:
+            result[UNIVERSAL_OUTPUT[field]] = value
+
+    # Contract có một số label rất phổ biến nhưng không nên để engine tổng quát
+    # hiểu nhầm từ các bảng khác.
+    contract_context = _extract_contract_context(text, all_aliases) if doc_type == "PURCHASE CONTRACT" else {}
 
     # Parties
-    put("EXPORTER", _extract_party_universal(
-        text,
-        _universal_aliases("EXPORTER", doc_type),
-        _universal_aliases("IMPORTER", doc_type) + _universal_aliases("BL_NUMBER", doc_type) + _universal_aliases("VESSEL_VOYAGE", doc_type)
-    ))
-    put("IMPORTER", _extract_party_universal(
-        text,
-        _universal_aliases("IMPORTER", doc_type),
-        _universal_aliases("EXPORTER", doc_type) + _universal_aliases("BL_NUMBER", doc_type) + _universal_aliases("VESSEL_VOYAGE", doc_type)
-    ))
-
-    # Common labeled fields
-    for field in ["INVOICE_NUMBER", "INVOICE_DATE", "CONTRACT_NUMBER", "CONTRACT_DATE", "BL_NUMBER", "QUANTITY", "PACKAGE_COUNT", "MEASUREMENT", "CURRENCY", "HS_CODE", "COUNTRY_OF_ORIGIN", "ETA", "ETD", "BOOKING_NUMBER", "PAYMENT_TERMS", "SHIPMENT_TIME"]:
+    for field, fallback_labels in {
+        "EXPORTER": ["Seller", "Exporter", "Supplier", "Vendor", "Shipper"],
+        "IMPORTER": ["Buyer", "Importer", "Purchaser", "Consignee"],
+    }.items():
         aliases = _universal_aliases(field, doc_type)
-        if not aliases:
-            continue
-        value = _extract_labeled_value_universal(text, aliases, stop_aliases=all_aliases)
-        if field in {"INVOICE_DATE", "CONTRACT_DATE", "ETA", "ETD"}:
-            value = value if value != EMPTY else None
+        value = _extract_labeled_value_universal(
+            text, aliases,
+            stop_aliases=_universal_aliases("EXPORTER" if field == "IMPORTER" else "IMPORTER", doc_type)
+            + _universal_aliases("BL_NUMBER", doc_type)
+            + _universal_aliases("VESSEL_VOYAGE", doc_type),
+            field=field,
+            all_aliases=all_aliases,
+        )
+        if value == EMPTY:
+            value = contract_context.get(field, EMPTY)
         put(field, value)
 
-    # Contract-specific contextual labels that are common across templates.
-    if doc_type == "PURCHASE CONTRACT":
-        for field, labels in {
-            "PAYMENT_TERMS": ["Payment", "Payment Terms", "Terms of Payment"],
-            "SHIPMENT_TIME": ["Shipment", "Time of Shipment", "Shipment Date"]
-        }.items():
-            if UNIVERSAL_OUTPUT[field] in result:
-                continue
-            value = _extract_labeled_value_universal(text, labels, stop_aliases=all_aliases)
-            if value != EMPTY:
-                put(field, value)
+    # Labeled fields.
+    for field in [
+        "INVOICE_NUMBER", "INVOICE_DATE", "CONTRACT_NUMBER", "CONTRACT_DATE",
+        "BL_NUMBER", "QUANTITY", "PACKAGE_COUNT", "MEASUREMENT", "CURRENCY",
+        "HS_CODE", "COUNTRY_OF_ORIGIN", "ETA", "ETD", "BOOKING_NUMBER",
+        "PAYMENT_TERMS", "SHIPMENT_TIME",
+    ]:
+        aliases = _universal_aliases(field, doc_type)
+        value = _extract_labeled_value_universal(
+            text, aliases,
+            stop_aliases=all_aliases,
+            field=field,
+            all_aliases=all_aliases,
+        )
+        if value == EMPTY and field in contract_context:
+            value = contract_context[field]
+        put(field, value)
 
-    # Numeric / commercial fields
-    put("UNIT_PRICE", _extract_money_after_label(text, _universal_aliases("UNIT_PRICE", doc_type)))
-    total_value = _extract_money_after_label(text, _universal_aliases("TOTAL_AMOUNT", doc_type) + ["Amounts", "Amount"])
-    if total_value != EMPTY:
-        for line in get_lines(text):
-            if re.search(r"\b(?:amounts?|grand\s+total|total\s+amount|total\s+value)\b", line, re.I) and re.search(r"\b\d[\d,]*\.\d{1,2}\b", line):
-                nums = re.findall(r"\b\d[\d,]*\.\d{1,2}\b", line)
-                if re.search(r"\btotal\b", line, re.I) and nums:
-                    total_value = nums[-1]
-                    break
+    # Numeric / commercial fields.
+    unit_value = _extract_labeled_value_universal(
+        text, _universal_aliases("UNIT_PRICE", doc_type),
+        stop_aliases=all_aliases, field="UNIT_PRICE", all_aliases=all_aliases,
+    )
+    if unit_value == EMPTY:
+        unit_value = contract_context.get("UNIT_PRICE", EMPTY)
+    put("UNIT_PRICE", unit_value)
+
+    total_value = _extract_labeled_value_universal(
+        text, _universal_aliases("TOTAL_AMOUNT", doc_type) + ["Amounts", "Amount"],
+        stop_aliases=all_aliases, field="TOTAL_AMOUNT", all_aliases=all_aliases,
+    )
+    if total_value == EMPTY:
+        total_value = contract_context.get("TOTAL_AMOUNT", EMPTY)
+    # Với dòng 'Amounts 5,716.80, 7,689.60, total 13,406.40', giữ cả dòng
+    # để không làm mất chi tiết tổng theo từng mặt hàng.
     put("TOTAL_AMOUNT", total_value)
 
-    # Standard helpers provide format-aware fallbacks.
+    # Format-aware fallbacks.
     if "Gross Weight" not in result:
         put("GROSS_WEIGHT", extract_weight(text, "gross"))
     if "Net Weight" not in result:
         put("NET_WEIGHT", extract_weight(text, "net"))
     if "Container No." not in result:
         put("CONTAINER_NUMBER", extract_containers(text))
-    if "Incoterm" not in result and "Delivery Terms" not in result:
+    if "Delivery Terms" not in result:
         put("INCOTERMS", extract_incoterm(text))
     if "B/L No." not in result:
         put("BL_NUMBER", extract_bl_number(text))
@@ -2637,15 +2764,30 @@ def extract_universal_fields(text, document_type=None):
         if isinstance(pairs, tuple) and len(pairs) > 1:
             put("SEAL_NUMBER", pairs[1])
 
-    put("DESCRIPTION", _extract_description_universal(text))
+    # Description: tránh lấy heading 'Description Quantity UnitPrice Amount'.
+    desc = _extract_labeled_value_universal(
+        text, _universal_aliases("DESCRIPTION", doc_type),
+        stop_aliases=_universal_aliases("QUANTITY", doc_type)
+        + _universal_aliases("UNIT_PRICE", doc_type)
+        + _universal_aliases("TOTAL_AMOUNT", doc_type),
+        field="DESCRIPTION", all_aliases=all_aliases,
+    )
+    if desc == EMPTY:
+        desc = extract_invoice_description(text)
+    put("DESCRIPTION", desc)
 
-    # Contextual Incoterm + location: e.g. FOB HO CHI MINH
-    if doc_type == "PURCHASE CONTRACT" or "Delivery Terms" not in result:
-        m = re.search(r"\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b(?:\s+|\s*[:,-]\s*)([A-Z][A-Z .,'()/-]{2,100})?", text, re.I)
-        if m:
-            put("INCOTERMS", m.group(1).upper())
-            if m.group(2) and "Port of Loading" not in result:
-                result["Port of Loading"] = clean_value(m.group(2))
+    # Contextual Incoterm + location, ví dụ FOB HO CHI MINH.
+    m = re.search(
+        r"\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b"
+        r"(?:\s+|\s*[:,-]\s*)([A-Z][A-Z .,'()/-]{2,100})?",
+        text, re.I,
+    )
+    if m:
+        put("INCOTERMS", m.group(1).upper())
+        if m.group(2) and "Port of Loading" not in result:
+            location = clean_value(m.group(2))
+            if location and not _is_probable_field_header(location, all_aliases):
+                result["Port of Loading"] = location
 
     return result
 
