@@ -3684,6 +3684,20 @@ if uploaded_files:
                     documents[document_type] = extracted
 
             # ----------------------------------------
+            # Save input to database
+            # ----------------------------------------
+            sample_id = save_document_sample(
+                document_type,
+                file.name,
+                full_text
+            )
+
+            save_extracted_fields(
+                sample_id,
+                extracted
+            )
+
+            # ----------------------------------------
             # Show extraction
             # ----------------------------------------
             if extracted:
