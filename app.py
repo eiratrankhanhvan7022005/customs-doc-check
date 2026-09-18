@@ -22,14 +22,20 @@ st.set_page_config(
 )
 
 EMPTY = "Không tìm thấy"
-# ============================================================
+
+# =========================================================
 # SUPABASE
-# ============================================================
+# =========================================================
 
 @st.cache_resource
 def get_supabase():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
+
+    st.sidebar.write(
+        "Supabase key type:",
+        key[:15]
+    )
 
     return create_client(url, key)
 
