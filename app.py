@@ -245,6 +245,85 @@ def find_standard_field(raw_label, document_type=None):
 
     return None
 
+
+# ============================================================
+# SEED KNOWLEDGE TO DATABASE
+# ============================================================
+
+def seed_field_aliases():
+    schema = FIELD_MAPPING_KB.get(
+        "FIELD_MAPPING_SCHEMA",
+        {}
+    )
+
+    if not schema:
+        return 0
+
+    inserted = 0
+
+    try:
+        existing_result = (
+            supabase
+            .table("field_aliases")
+            .select("raw_label, standard_field, document_type")
+            .execute()
+        )
+
+        existing = {
+            (
+                row.get("raw_label"),
+                row.get("standard_field"),
+                row.get("document_type")
+            )
+            for row in (existing_result.data or [])
+        }
+
+        rows = []
+
+        for standard_field, aliases in schema.items():
+
+            if not isinstance(aliases, list):
+                continue
+
+            for alias in aliases:
+
+                alias = str(alias).strip()
+
+                if not alias:
+                    continue
+
+                key = (
+                    alias,
+                    standard_field,
+                    None
+                )
+
+                if key in existing:
+                    continue
+
+                rows.append({
+                    "raw_label": alias,
+                    "standard_field": standard_field,
+                    "document_type": None,
+                    "context": None,
+                    "confidence": 1.0,
+                    "confirmed": True,
+                    "times_confirmed": 1
+                })
+
+        if rows:
+            supabase.table("field_aliases").insert(rows).execute()
+            inserted = len(rows)
+
+        load_database_aliases.clear()
+
+    except Exception as e:
+        st.warning(
+            f"Không thể nạp Knowledge vào Database: {e}"
+        )
+
+    return inserted
+
 def get_lines(text):
     text = normalize_text(text)
 
@@ -3783,6 +3862,14 @@ st.divider()
 st.caption(
     "Customs Document Check – Prototype phục vụ nghiên cứu kiểm soát chứng từ."
 )
+
+# ============================================================
+# SEED KNOWLEDGE ONCE
+# ============================================================
+
+if "knowledge_seeded" not in st.session_state:
+    seed_field_aliases()
+    st.session_state["knowledge_seeded"] = True
 
 
 # ============================================================
