@@ -42,6 +42,13 @@ def get_supabase():
 
 supabase = get_supabase()
 
+try:
+    debug_result = supabase.rpc("debug_auth_role").execute()
+    st.sidebar.write("DB auth role:", debug_result.data)
+except Exception as e:
+    st.sidebar.error(f"DEBUG RPC ERROR: {e}")
+    
+
 def save_document_sample(document_type, file_name, raw_text):
     try:
         result = (
