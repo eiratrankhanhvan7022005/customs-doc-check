@@ -53,12 +53,14 @@ def save_document_sample(document_type, file_name, raw_text):
     try:
         result = (
             supabase
-            .table("document_samples")
-            .insert({
-                "document_type": document_type,
-                "file_name": file_name,
-                "raw_text": raw_text
-            })
+            .rpc(
+                "insert_document_sample",
+                {
+                    "p_document_type": document_type,
+                    "p_file_name": file_name,
+                    "p_raw_text": raw_text
+                }
+            )
             .execute()
         )
 
@@ -67,8 +69,8 @@ def save_document_sample(document_type, file_name, raw_text):
             result.data
         )
 
-        if result.data:
-            return result.data[0]["id"]
+        if result.data is not None:
+            return int(result.data)
 
     except Exception as e:
         st.sidebar.error(
