@@ -148,6 +148,103 @@ def normalize_text(text):
     return text.strip()
 
 
+# ============================================================
+# LEARNED KNOWLEDGE
+# ============================================================
+
+def normalize_label_for_learning(value):
+    if not value:
+        return ""
+
+    value = str(value).strip().upper()
+    value = re.sub(r"[.:]", "", value)
+    value = re.sub(r"\s+", " ", value)
+
+    return value
+
+
+def find_learned_field(raw_label, document_type=None):
+    target = normalize_label_for_learning(raw_label)
+
+    if not target:
+        return None
+
+    rows = load_database_aliases()
+    candidates = []
+
+    for row in rows:
+        raw = normalize_label_for_learning(
+            row.get("raw_label", "")
+        )
+
+        if raw != target:
+            continue
+
+        row_doc_type = row.get("document_type")
+
+        if (
+            document_type
+            and row_doc_type
+            and row_doc_type != document_type
+        ):
+            continue
+
+        candidates.append(row)
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda x: (
+            bool(x.get("confirmed")),
+            x.get("times_confirmed", 0),
+            x.get("confidence", 0)
+        ),
+        reverse=True
+    )
+
+    return candidates[0]
+
+
+def find_standard_field(raw_label, document_type=None):
+    target = normalize_label_for_learning(raw_label)
+
+    if not target:
+        return None
+
+    # Ưu tiên kiến thức đã học từ Database
+    learned = find_learned_field(
+        raw_label,
+        document_type
+    )
+
+    if learned:
+        return {
+            "standard_field": learned.get("standard_field"),
+            "source": "LEARNED_DATABASE",
+            "confidence": learned.get("confidence", 0),
+            "confirmed": learned.get("confirmed", False)
+        }
+
+    # Nếu Database chưa có → dùng Knowledge gốc
+    schema = FIELD_MAPPING_KB.get(
+        "FIELD_MAPPING_SCHEMA",
+        {}
+    )
+
+    for standard_field, aliases in schema.items():
+        for alias in aliases:
+
+            if normalize_label_for_learning(alias) == target:
+                return {
+                    "standard_field": standard_field,
+                    "source": "SEED_KNOWLEDGE",
+                    "confidence": 1.0,
+                    "confirmed": True
+                }
+
+    return None
+
 def get_lines(text):
     text = normalize_text(text)
 
