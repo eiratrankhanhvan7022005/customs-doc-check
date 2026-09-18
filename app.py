@@ -2428,9 +2428,9 @@ UNIVERSAL_FIELD_ALIASES = {
     "ETA": ["ETA", "Estimated Time of Arrival", "Estimated Arrival"],
     "ETD": ["ETD", "Estimated Time of Departure", "Estimated Departure"],
     "BOOKING_NUMBER": ["Booking No.", "Booking No", "Booking Number", "Booking #"],
-    "PAYMENT_TERMS": ["Payment", "Payment Terms", "Terms of Payment", "Payment Term"],
-    "SHIPMENT_TIME": ["Time of Shipment", "Shipment Time", "Shipment Date", "Shipment"],
-    "DESCRIPTION": ["Description of Goods", "Description", "Goods Description", "Commodity", "Product Description"],
+    "PAYMENT_TERMS": ["Payment Terms", "Terms of Payment", "Payment Term", "Payment", "Terms of Payment"],
+    "SHIPMENT_TIME": ["Time of Shipment", "Shipment Time", "Shipment Date", "Shipment Before", "Shipment"],
+    "DESCRIPTION": ["Description of Goods", "Description", "Goods Description", "Commodity", "Product Description", "Kind", "K/D", "K/D of Goods"],
     "PO_NUMBER": ["PO No.", "PO No", "PO Number", "PO #", "Purchase Order No.", "Purchase Order Number"],
 }
 
@@ -2448,8 +2448,8 @@ UNIVERSAL_OUTPUT = {
 # Universal aliases are intentionally semantic, not sample-specific.
 # They are merged with aliases learned/seeded from the Knowledge Base.
 UNIVERSAL_FIELD_ALIASES = {
-    "EXPORTER": ["Seller", "Seller Name", "Exporter", "Exporter Name", "Shipper", "Supplier", "Vendor", "Manufacturer"],
-    "IMPORTER": ["Buyer", "Buyer Name", "Importer", "Importer Name", "Purchaser", "Customer", "Bill To"],
+    "EXPORTER": ["Seller", "Seller Name", "Seller / Exporter", "Exporter", "Exporter Name", "Shipper", "Supplier", "Vendor", "Manufacturer"],
+    "IMPORTER": ["Buyer", "Buyer Name", "Buyer / Importer", "Importer", "Importer Name", "Purchaser", "Customer", "Bill To"],
     "CONSIGNEE": ["Consignee", "Consignee Name", "Ship To"],
     "NOTIFY_PARTY": ["Notify Party", "Notify", "Notification Party"],
     "INVOICE_NUMBER": ["Invoice No.", "Invoice No", "Invoice Number", "Invoice #", "Inv No.", "Inv No"],
@@ -2584,7 +2584,12 @@ def _value_valid_for_field(field, value):
     if typ == "seal": return bool(re.search(r"\b[A-Z0-9][A-Z0-9._/-]{3,20}\b", v, re.I)) and not _has_number(v) or bool(re.search(r"\b[A-Z0-9][A-Z0-9._/-]{3,20}\b", v, re.I))
     if typ == "currency": return bool(re.search(r"\b(?:USD|EUR|VND|CNY|RMB|JPY|KRW|GBP|AUD|CAD|SGD|HKD)\b|[$€£]", v, re.I))
     if typ == "incoterm": return bool(re.search(r"\b(?:EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b", v, re.I))
-    if field == "BL_NUMBER": return bool(re.search(r"[A-Z0-9][A-Z0-9./_-]{4,40}", v, re.I))
+    if field == "BL_NUMBER":
+        # B/L identifiers normally contain a meaningful mix of letters/numbers or a
+        # recognized prefix. Plain prose such as "date." must never qualify.
+        return (bool(re.search(r"\d", v)) and len(v) >= 5 and len(v) <= 40
+                and not re.fullmatch(r"[A-Za-z]+", v)
+                and not re.search(r"(?:date|english|copy|same|value|goods|before)", v, re.I))
     if field in {"EXPORTER", "IMPORTER", "CONSIGNEE", "NOTIFY_PARTY"}:
         bad = ["DATE", "QUANTITY", "PRICE", "AMOUNT", "PAYMENT", "SHIPMENT", "DELIVERY", "COPY", "ENGLISH IN TWO"]
         return len(v) >= 2 and not any(x in _norm_semantic(v) for x in bad)
@@ -2733,6 +2738,99 @@ def _contract_semantic_candidates(lines, field):
     return sorted(out,key=lambda x:x[0],reverse=True)
 
 
+
+def _contract_structured_candidates(lines, field):
+    """Extract explicit PURCHASE CONTRACT semantics without relying on a sample name.
+    Handles colon/no-colon labels and the compact contract summary style used by many
+    sales contracts. This is semantic parsing, not template-specific matching.
+    """
+    out = []
+    patterns = {
+        "EXPORTER": [r"^\s*Seller\s*[:#-]?\s*(.+)$", r"^\s*Seller\s*/\s*Exporter\s*[:#-]?\s*(.+)$"],
+        "IMPORTER": [r"^\s*Buyer\s*[:#-]?\s*(.+)$", r"^\s*Buyer\s*/\s*Importer\s*[:#-]?\s*(.+)$"],
+        "CONSIGNEE": [r"^\s*Consignee\s*[:#-]?\s*(.+)$"],
+        "CONTRACT_NUMBER": [r"^\s*(?:Contract\s+)?No\.?\s*[:#-]\s*([A-Z0-9][A-Z0-9./_-]{2,50})\s*$"],
+        "CONTRACT_DATE": [r"^\s*(?:Contract\s+)?Date\s*[:#-]\s*(.+?)\s*$"],
+        "PO_NUMBER": [r"^\s*PO\s*(?:No\.?|Number|#)\s*[:#-]?\s*([A-Z0-9./_-]+)"],
+        "QUANTITY": [r"^\s*(?:QTY|Q'TY|QUANTITY)\s*[:#-]?\s*(.+)$"],
+        "UNIT_PRICE": [r"^\s*UNIT\s+PRICES?\s*[:#-]?\s*(.+)$"],
+        "TOTAL_AMOUNT": [r"^\s*AMOUNTS?\s*[:#-]?\s*(.+)$", r"^\s*TOTAL\s+AMOUNT\s*[:#-]?\s*(.+)$"],
+        "PAYMENT_TERMS": [r"^\s*(?:PAYMENT\s+TERMS?|TERMS\s+OF\s+PAYMENT)\s*[:#-]?\s*(.+)$"],
+        "SHIPMENT_TIME": [r"^\s*(?:SHIPMENT\s+BEFORE|TIME\s+OF\s+SHIPMENT|SHIPMENT\s+DATE)\s*[:#-]?\s*(.+)$"],
+        "DESCRIPTION": [r"^\s*(?:K/D|KIND|DESCRIPTION(?:\s+OF\s+GOODS)?)\s*[:#-]?\s*(.+)$"],
+    }
+    for pat in patterns.get(field, []):
+        for i, line in enumerate(lines):
+            m = re.match(pat, line, re.I)
+            if not m:
+                continue
+            v = clean_value(m.group(1))
+            v = _strip_next_label(v, field, list(dict.fromkeys(a for f in UNIVERSAL_OUTPUT for a in _universal_aliases(f))))
+            if v != EMPTY and _value_valid_for_field(field, v):
+                out.append((170 - i * 0.05, v, i, "CONTRACT_SEMANTIC", "contract"))
+
+    # Incoterm + place is a common semantic pair: "FOB HO CHI MINH".
+    if field == "INCOTERMS" or field == "PORT_OF_LOADING":
+        for i, line in enumerate(lines):
+            m = re.search(r"\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b\s+([A-Za-z][A-Za-z0-9 .,'()/-]{2,80})", line, re.I)
+            if m:
+                if field == "INCOTERMS":
+                    out.append((165, m.group(1).upper(), i, "INCOTERM", "contract"))
+                else:
+                    loc = clean_value(m.group(2))
+                    # Cut trailing prose that clearly starts another semantic field.
+                    loc = re.split(r"\b(?:PO\s*(?:NO\.?|NUMBER|#)|PAYMENT|SHIPMENT|QTY|QUANTITY|UNIT\s+PRICE|AMOUNT)\b", loc, flags=re.I)[0].strip(" ,;:-")
+                    if _value_valid_for_field(field, loc):
+                        out.append((150, loc, i, "INCOTERM_PLACE", "contract"))
+
+    return sorted(out, key=lambda x: x[0], reverse=True)
+
+
+def _strict_fix_bad_candidates(result, lines, document_type):
+    """Reject known semantic impossibilities and replace them with stronger evidence."""
+    # Never allow prose such as "date." to become a B/L number.
+    if result.get("B/L No."):
+        v = result["B/L No."]
+        if not re.search(r"\d", v) or re.search(r"\b(?:date|english|copy|same|value)\b", v, re.I):
+            result.pop("B/L No.", None)
+
+    # Explicit role labels have priority over overlapping DB aliases.
+    role_patterns = {
+        "Seller / Exporter": r"^\s*Seller\s*[:#-]?\s*(.+)$",
+        "Buyer / Importer": r"^\s*Buyer\s*[:#-]?\s*(.+)$",
+        "Consignee": r"^\s*Consignee\s*[:#-]?\s*(.+)$",
+    }
+    for out_key, pat in role_patterns.items():
+        for line in lines:
+            m = re.match(pat, line, re.I)
+            if m:
+                v = clean_value(m.group(1))
+                if v != EMPTY and _value_valid_for_field({"Seller / Exporter":"EXPORTER","Buyer / Importer":"IMPORTER","Consignee":"CONSIGNEE"}[out_key], v):
+                    result[out_key] = v
+                    break
+
+    # Explicit contract semantic labels override generic table/header guesses.
+    field_to_output = {
+        "QUANTITY":"Quantity", "UNIT_PRICE":"Unit Price", "TOTAL_AMOUNT":"Total Amount",
+        "PAYMENT_TERMS":"Payment Terms", "SHIPMENT_TIME":"Time of Shipment",
+        "DESCRIPTION":"Description of Goods", "PO_NUMBER":"PO No.",
+        "CONTRACT_NUMBER":"Contract No.", "CONTRACT_DATE":"Contract Date",
+        "INCOTERMS":"Delivery Terms", "PORT_OF_LOADING":"Port of Loading"
+    }
+    if document_type == "PURCHASE CONTRACT":
+        for f, out_key in field_to_output.items():
+            c = _contract_structured_candidates(lines, f)
+            if c:
+                result[out_key] = clean_value(c[0][1])
+
+    # A value like "Qty UnitPrice Amount" is a header, never a quantity/price/amount.
+    for out_key in ("Quantity", "Unit Price", "Total Amount"):
+        v = result.get(out_key, EMPTY)
+        if v != EMPTY and re.search(r"\b(?:QTY|QUANTITY|UNIT\s*PRICE|UNITPRICE|AMOUNT|TOTAL)\b", v, re.I) and not re.search(r"\d", v):
+            result.pop(out_key, None)
+
+    return result
+
 def extract_universal_fields(text, document_type=None):
     """Universal semantic engine for ALL supported document types and layouts.
 
@@ -2754,6 +2852,7 @@ def extract_universal_fields(text, document_type=None):
         candidates.extend(_extract_candidates(lines,field,aliases_by_field[field],all_aliases,doc_type))
         candidates.extend(_extract_table_candidates(lines,field,aliases_by_field[field],all_aliases,doc_type))
         candidates.extend(_contract_semantic_candidates(lines,field) if doc_type=="PURCHASE CONTRACT" else [])
+        candidates.extend(_contract_structured_candidates(lines, field) if doc_type=="PURCHASE CONTRACT" else [])
 
         # Format-independent legacy detectors are SECONDARY evidence only.
         fallback_map={
