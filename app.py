@@ -6,7 +6,10 @@ from pdf2image import convert_from_bytes
 from PIL import Image, ImageOps, ImageEnhance, ImageFilter
 import pandas as pd
 import re
-
+import os
+import json
+from pathlib import Path
+from supabase import create_client, Client
 
 # =========================================================
 # 1. CONFIG
@@ -19,7 +22,19 @@ st.set_page_config(
 )
 
 EMPTY = "Không tìm thấy"
+# ============================================================
+# SUPABASE
+# ============================================================
 
+@st.cache_resource
+def get_supabase():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+
+    return create_client(url, key)
+
+
+supabase = get_supabase()
 # Giới hạn để app ổn định trên Streamlit Cloud
 MAX_FILE_SIZE_MB = 20
 MAX_OCR_PAGES = 30
