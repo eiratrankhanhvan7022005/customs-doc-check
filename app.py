@@ -35,11 +35,34 @@ def get_supabase():
 
 
 supabase = get_supabase()
+
+
+# ============================================================
+# KNOWLEDGE BASE
+# ============================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+KNOWLEDGE_DIR = BASE_DIR / "knowledge"
+
+
+@st.cache_data
+def load_json_knowledge(filename):
+    path = KNOWLEDGE_DIR / filename
+
+    if not path.exists():
+        return {}
+
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+FIELD_MAPPING_KB = load_json_knowledge("field_mapping.json")
+DOCUMENT_NOTATIONS_KB = load_json_knowledge("document_notations.json")
+LEARNING_RULES_KB = load_json_knowledge("learning_rules.json")
 # Giới hạn để app ổn định trên Streamlit Cloud
 MAX_FILE_SIZE_MB = 20
 MAX_OCR_PAGES = 30
 OCR_DPI = 250
-
 
 # =========================================================
 # 2. BASIC HELPERS
