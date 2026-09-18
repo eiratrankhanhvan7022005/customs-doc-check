@@ -2293,6 +2293,74 @@ def extract_bl(text):
 #   4. Có thể đọc label cùng dòng, dòng kế tiếp và các bảng đơn giản.
 #   5. Không dùng dữ liệu của chứng từ khác để "điền" cho chứng từ đang đọc.
 
+def detect_document_type(text, file_name=""):
+    """Universal document-type detection for all supported document types.
+
+    Uses semantic anchors from DOCUMENT_PROFILES plus filename evidence.
+    Returns (document_type, score_dict).
+    """
+    raw = str(text or "")
+    name = str(file_name or "")
+    u = re.sub(r"\s+", " ", raw.upper())
+    fn = re.sub(r"[_\-]+", " ", name.upper())
+
+    scores = {}
+    for doc_type, profile in DOCUMENT_PROFILES.items():
+        score = 0.0
+        strong = profile.get("strong", [])
+        anchors = profile.get("anchors", [])
+
+        for term in strong:
+            t = str(term).upper()
+            if t and t in u:
+                score += 30.0
+            if t and t in fn:
+                score += 12.0
+
+        for term in anchors:
+            t = str(term).upper()
+            if t and t in u:
+                score += 7.0
+            if t and t in fn:
+                score += 3.0
+
+        # Semantic evidence specific to document families.
+        if doc_type == "COMMERCIAL INVOICE":
+            if re.search(r"\b(INVOICE|INVOICE NO|BILL TO|SHIP TO|UNIT PRICE|TOTAL AMOUNT)\b", u):
+                score += 5
+        elif doc_type == "PURCHASE CONTRACT":
+            if re.search(r"\b(CONTRACT NO|SALES CONTRACT|PURCHASE CONTRACT|PO NO|PAYMENT TERMS)\b", u):
+                score += 8
+        elif doc_type == "PACKING LIST":
+            if re.search(r"\b(PACKING LIST|GROSS WEIGHT|NET WEIGHT|C/NO|MARKS & NOS)\b", u):
+                score += 8
+        elif doc_type == "BILL OF LADING":
+            if re.search(r"\b(SHIPPER|CONSIGNEE|B/L NO|VESSEL|VOYAGE|PORT OF LOADING|PORT OF DISCHARGE)\b", u):
+                score += 8
+        elif doc_type == "CERTIFICATE OF ORIGIN":
+            if re.search(r"\b(CERTIFICATE OF ORIGIN|ORIGIN CRITERION|CERTIFYING AUTHORITY|FORM [A-Z])\b", u):
+                score += 8
+        elif doc_type == "BOOKING":
+            if re.search(r"\b(BOOKING NO|BOOKING CONFIRMATION|VESSEL|VOYAGE|PORT OF LOADING)\b", u):
+                score += 7
+        elif doc_type == "ARRIVAL NOTICE":
+            if re.search(r"\b(ARRIVAL NOTICE|NOTICE OF ARRIVAL|ETA|B/L NO|CONTAINER)\b", u):
+                score += 7
+
+        scores[doc_type] = round(score, 2)
+
+    # Resolve generic "INVOICE" in favor of invoice unless stronger contract evidence exists.
+    if scores.get("PURCHASE CONTRACT", 0) > scores.get("COMMERCIAL INVOICE", 0):
+        chosen = "PURCHASE CONTRACT"
+    else:
+        chosen = max(scores, key=scores.get) if scores else "UNKNOWN"
+
+    if not scores or scores.get(chosen, 0) <= 0:
+        chosen = "UNKNOWN"
+
+    return chosen, scores
+
+
 DOCUMENT_PROFILES = {
     "COMMERCIAL INVOICE": {
         "anchors": ["COMMERCIAL INVOICE", "PROFORMA INVOICE", "INVOICE"],
