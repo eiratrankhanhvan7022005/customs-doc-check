@@ -3,7 +3,7 @@ from pypdf import PdfReader
 from io import BytesIO
 import pytesseract
 from pdf2image import convert_from_bytes
-from PIL import ImageOps, ImageEnhance, ImageFilter
+from PIL import Image, ImageOps, ImageEnhance, ImageFilter
 import pandas as pd
 import re
 
@@ -119,115 +119,322 @@ def values_match(a, b):
 # 3. PDF / OCR - HYBRID READER
 # =========================================================
 
+# Giới hạn tài nguyên để Streamlit Cloud không bị quá tải
+MAX_OCR_PAGES = 30
+OCR_DPI = 200
+
+
+# =========================================================
+# 3.1 ĐỌC TEXT GỐC TỪ PDF
+# =========================================================
+
+@st.cache_data(show_spinner=False, max_entries=32)
 def read_pdf_text(file_bytes):
+    """
+    Đọc text layer của PDF bằng pypdf.
+
+    Nếu PDF có text thật:
+        -> dùng text này
+        -> KHÔNG OCR
+
+    Nếu PDF là bản scan:
+        -> text trả về rất ít hoặc rỗng
+        -> chuyển sang OCR.
+    """
+
     pages = []
+
     try:
         reader = PdfReader(BytesIO(file_bytes))
+
         for page in reader.pages:
-            pages.append(page.extract_text() or "")
+
+            try:
+                text = page.extract_text() or ""
+            except Exception:
+                text = ""
+
+            pages.append(text)
+
         return pages, len(reader.pages), None
+
     except Exception as e:
+
         return [], 0, str(e)
 
 
+# =========================================================
+# 3.2 PREPROCESS ẢNH TRƯỚC OCR
+# =========================================================
+
 def preprocess_image(image):
-    """Làm rõ chữ/bảng trước OCR."""
-    img = image.convert("L")
-    img = ImageOps.autocontrast(img)
-    img = ImageEnhance.Contrast(img).enhance(1.7)
-    img = ImageEnhance.Sharpness(img).enhance(1.5)
-    img = img.filter(ImageFilter.SHARPEN)
-    return img
-
-
-def ocr_image_multi(image):
     """
-    OCR cùng một trang theo nhiều chế độ bố cục.
-    psm 6: khối văn bản/bảng
-    psm 11: chữ rải rác
-    psm 3: tự động bố cục
+    Làm rõ ảnh trước OCR.
+    Không resize quá lớn để tránh tốn CPU.
     """
-    img = preprocess_image(image)
-    outputs = []
 
-    # Ưu tiên tiếng Anh vì phần lớn chứng từ XNK dùng tiếng Anh.
-    # Nếu không có eng+vie thì thử eng.
-    for lang in ("eng+vie", "eng"):
-        for psm in (6, 11):
-            try:
-                txt = pytesseract.image_to_string(
-                    img,
-                    lang=lang,
-                    config=f"--oem 3 --psm {psm}"
-                )
-                if txt and txt.strip():
-                    outputs.append(txt)
-            except Exception:
-                pass
-        if outputs:
-            break
-
-    # Ghép các kết quả OCR nhưng loại dòng trùng.
-    seen = set()
-    merged = []
-    for txt in outputs:
-        for line in txt.splitlines():
-            line = line.strip()
-            key = re.sub(r"\s+", " ", line).upper()
-            if line and key not in seen:
-                seen.add(key)
-                merged.append(line)
-
-    return "\n".join(merged)
-
-
-def merge_page_text(native_text, ocr_text):
-    """
-    Giữ cả text layer của PDF và OCR.
-    Đây là điểm quan trọng: không bỏ OCR chỉ vì PDF đọc được >30 ký tự.
-    """
-    native_text = normalize_text(native_text or "")
-    ocr_text = normalize_text(ocr_text or "")
-
-    if not native_text:
-        return ocr_text
-    if not ocr_text:
-        return native_text
-
-    return native_text + "\n" + ocr_text
-
-
-def process_pdf(file_bytes):
-    native_pages, native_count, native_error = read_pdf_text(file_bytes)
-
-    # Luôn render TOÀN BỘ trang để OCR, kể cả PDF đã có text layer.
     try:
+
+        img = image.convert("L")
+
+        img = ImageOps.autocontrast(img)
+
+        img = ImageEnhance.Contrast(img).enhance(1.5)
+
+        img = ImageEnhance.Sharpness(img).enhance(1.3)
+
+        img = img.filter(ImageFilter.SHARPEN)
+
+        return img
+
+    except Exception:
+
+        return image
+
+
+# =========================================================
+# 3.3 OCR MỘT TRANG
+# =========================================================
+
+def ocr_image(image):
+    """
+    OCR một trang với cấu hình nhẹ.
+
+    Không chạy 3 PSM như code cũ vì việc đó làm
+    CPU tăng rất nhiều khi upload nhiều chứng từ.
+    """
+
+    image = preprocess_image(image)
+
+    # Ưu tiên tiếng Anh vì chứng từ XNK chủ yếu dùng tiếng Anh.
+    languages = [
+        "eng+vie",
+        "eng"
+    ]
+
+    for lang in languages:
+
+        try:
+
+            result = pytesseract.image_to_string(
+                image,
+                lang=lang,
+                config="--oem 3 --psm 6"
+            )
+
+            if result and result.strip():
+
+                return result
+
+        except Exception:
+
+            continue
+
+    return ""
+
+
+# =========================================================
+# 3.4 OCR PDF SCAN
+# =========================================================
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def ocr_pdf(file_bytes):
+    """
+    Chỉ được gọi khi PDF không có text layer đủ dùng.
+
+    OCR tối đa 30 trang và DPI 200 để giảm CPU/RAM.
+    """
+
+    try:
+
         images = convert_from_bytes(
             file_bytes,
             dpi=OCR_DPI,
             fmt="png",
-            thread_count=2,
+            thread_count=1,
             first_page=1,
             last_page=MAX_OCR_PAGES
         )
-    except Exception as e:
-        # Nếu Poppler/OCR không hoạt động thì vẫn dùng text layer.
+
+    except Exception:
+
+        return []
+
+    results = []
+
+    for image in images:
+
+        text = ocr_image(image)
+
+        results.append(text)
+
+    return results
+
+
+# =========================================================
+# 3.5 KIỂM TRA PDF CÓ TEXT ĐỦ DÙNG KHÔNG
+# =========================================================
+
+def has_enough_text(text):
+    """
+    Xác định PDF có text layer đủ để dùng hay không.
+
+    80 ký tự chỉ là ngưỡng kỹ thuật.
+    Không dùng OCR nếu PDF đã có text tương đối đầy đủ.
+    """
+
+    if not text:
+
+        return False
+
+    compact = re.sub(
+        r"\s+",
+        "",
+        text
+    )
+
+    return len(compact) >= 80
+
+
+# =========================================================
+# 3.6 MERGE TEXT THEO TỪNG TRANG
+# =========================================================
+
+def merge_page_text(native_text, ocr_text):
+
+    native_text = normalize_text(
+        native_text or ""
+    )
+
+    ocr_text = normalize_text(
+        ocr_text or ""
+    )
+
+    if native_text and ocr_text:
+
+        return (
+            native_text
+            + "\n"
+            + ocr_text
+        )
+
+    if native_text:
+
+        return native_text
+
+    return ocr_text
+
+
+# =========================================================
+# 3.7 PROCESS PDF - HYBRID
+# =========================================================
+
+def process_pdf(file_bytes):
+
+    # -----------------------------------------------------
+    # BƯỚC 1: ĐỌC TEXT LAYER
+    # -----------------------------------------------------
+
+    native_pages, page_count, native_error = read_pdf_text(
+        file_bytes
+    )
+
+    native_text = "\n".join(
+        native_pages
+    )
+
+    # -----------------------------------------------------
+    # BƯỚC 2: PDF CÓ TEXT ĐỦ DÙNG
+    # -----------------------------------------------------
+
+    if has_enough_text(native_text):
+
+        return (
+            native_pages,
+            page_count,
+            "PDF TEXT",
+            None
+        )
+
+    # -----------------------------------------------------
+    # BƯỚC 3: PDF SCAN -> OCR
+    # -----------------------------------------------------
+
+    ocr_pages = ocr_pdf(
+        file_bytes
+    )
+
+    if not ocr_pages:
+
+        # Nếu OCR lỗi nhưng vẫn có text layer
         if native_pages:
-            return native_pages, native_count, "TEXT (OCR unavailable)", None
-        return [], 0, "ERROR", str(e)
 
-    final_pages = []
+            return (
+                native_pages,
+                page_count,
+                "PDF TEXT",
+                None
+            )
 
-    if len(native_pages) > MAX_OCR_PAGES:
-        native_pages = native_pages[:MAX_OCR_PAGES]
+        return (
+            [],
+            page_count,
+            "ERROR",
+            native_error or
+            "Không đọc được PDF và OCR không trả kết quả."
+        )
 
-    for i, image in enumerate(images):
-        native = native_pages[i] if i < len(native_pages) else ""
-        ocr = ocr_image_multi(image)
-        final_pages.append(merge_page_text(native, ocr))
+    # -----------------------------------------------------
+    # BƯỚC 4: MERGE TEXT
+    # -----------------------------------------------------
 
-    return final_pages, len(images), "HYBRID TEXT + OCR 300 DPI", None
+    merged_pages = []
 
+    max_pages = min(
+        max(
+            len(native_pages),
+            len(ocr_pages)
+        ),
+        MAX_OCR_PAGES
+    )
+
+    for i in range(max_pages):
+
+        native = (
+            native_pages[i]
+            if i < len(native_pages)
+            else ""
+        )
+
+        ocr = (
+            ocr_pages[i]
+            if i < len(ocr_pages)
+            else ""
+        )
+
+        # Nếu trang đã có text đủ rõ:
+        # dùng text gốc, không lấy OCR.
+        if has_enough_text(native):
+
+            merged_pages.append(
+                normalize_text(native)
+            )
+
+        else:
+
+            merged_pages.append(
+                merge_page_text(
+                    native,
+                    ocr
+                )
+            )
+
+    return (
+        merged_pages,
+        page_count,
+        "OCR",
+        None
+    )
 
 # =========================================================
 # 4. GENERIC REGEX
