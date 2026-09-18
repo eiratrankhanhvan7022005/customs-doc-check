@@ -4285,8 +4285,8 @@ def is_semantic_label_only(
         )
 
         after = text[
-            hit["end"]:]
-        .strip(
+            hit["end"]:
+        ].strip(
             " :：=-"
         )
 
