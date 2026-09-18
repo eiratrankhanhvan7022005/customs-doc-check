@@ -3619,3 +3619,27 @@ st.divider()
 st.caption(
     "Customs Document Check – Prototype phục vụ nghiên cứu kiểm soát chứng từ."
 )
+
+
+# ============================================================
+# TEST SUPABASE CONNECTION
+# ============================================================
+
+with st.sidebar:
+    st.markdown("---")
+    st.subheader("Database")
+
+    try:
+        test_result = (
+            supabase
+            .table("document_samples")
+            .select("id")
+            .limit(1)
+            .execute()
+        )
+
+        st.success("Supabase: CONNECTED")
+
+    except Exception as e:
+        st.error("Supabase: CONNECTION ERROR")
+        st.code(str(e))
