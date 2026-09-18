@@ -294,12 +294,16 @@ def find_learned_field(raw_label, document_type=None):
 
 
 def find_standard_field(raw_label, document_type=None):
+
     target = normalize_label_for_learning(raw_label)
 
     if not target:
         return None
 
-    # Ưu tiên kiến thức đã học từ Database
+    # =====================================================
+    # 1. ƯU TIÊN KNOWLEDGE ĐÃ HỌC TỪ DATABASE
+    # =====================================================
+
     learned = find_learned_field(
         raw_label,
         document_type
@@ -313,16 +317,24 @@ def find_standard_field(raw_label, document_type=None):
             "confirmed": learned.get("confirmed", False)
         }
 
-    # Nếu Database chưa có → dùng Knowledge gốc
+    # =====================================================
+    # 2. KNOWLEDGE ĐÃ SEED TỪ field_mapping.json
+    # =====================================================
+
     schema = FIELD_MAPPING_KB.get(
         "FIELD_MAPPING_SCHEMA",
         {}
     )
 
     for standard_field, aliases in schema.items():
+
+        if not isinstance(aliases, list):
+            continue
+
         for alias in aliases:
 
             if normalize_label_for_learning(alias) == target:
+
                 return {
                     "standard_field": standard_field,
                     "source": "SEED_KNOWLEDGE",
@@ -330,8 +342,823 @@ def find_standard_field(raw_label, document_type=None):
                     "confirmed": True
                 }
 
+    # =====================================================
+    # 3. KHÔNG TÌM THẤY
+    # =====================================================
+
     return None
 
+
+def get_database_field_aliases(
+    standard_field,
+    document_type=None
+):
+    """
+    Lấy toàn bộ alias của một standard field
+    từ cả Database và Knowledge JSON.
+    """
+
+    aliases = []
+
+    # =====================================================
+    # 1. LẤY TỪ field_mapping.json
+    # =====================================================
+
+    schema = FIELD_MAPPING_KB.get(
+        "FIELD_MAPPING_SCHEMA",
+        {}
+    )
+
+    seed_aliases = schema.get(
+        standard_field,
+        []
+    )
+
+    if isinstance(seed_aliases, list):
+
+        for alias in seed_aliases:
+
+            alias = str(alias).strip()
+
+            if alias and alias not in aliases:
+                aliases.append(alias)
+
+    # =====================================================
+    # 2. LẤY TỪ DATABASE field_aliases
+    # =====================================================
+
+    try:
+
+        rows = load_database_aliases()
+
+        for row in rows:
+
+            if row.get("standard_field") != standard_field:
+                continue
+
+            row_doc_type = row.get("document_type")
+
+            if (
+                document_type
+                and row_doc_type
+                and row_doc_type != document_type
+            ):
+                continue
+
+            raw_label = row.get("raw_label")
+
+            if not raw_label:
+                continue
+
+            raw_label = str(raw_label).strip()
+
+            if raw_label and raw_label not in aliases:
+                aliases.append(raw_label)
+
+    except Exception:
+        pass
+
+    return aliases
+
+def build_alias_pattern(aliases):
+    """
+    Chuyển danh sách alias thành regex pattern.
+    Alias lấy từ Knowledge Base + Database.
+    """
+
+    valid_aliases = []
+
+    for alias in aliases:
+
+        alias = str(alias).strip()
+
+        if not alias:
+            continue
+
+        if alias not in valid_aliases:
+            valid_aliases.append(alias)
+
+    # Alias dài hơn đứng trước để tránh match nhầm
+    valid_aliases.sort(
+        key=len,
+        reverse=True
+    )
+
+    if not valid_aliases:
+        return None
+
+    return "|".join(
+        re.escape(alias)
+        for alias in valid_aliases
+    )
+
+def extract_value_after_label(
+    text,
+    aliases,
+    stop_aliases=None
+):
+    """
+    Tìm label trong chứng từ và lấy giá trị đi kèm.
+
+    Hỗ trợ:
+    Seller: ABC COMPANY
+    Seller ABC COMPANY
+    Seller
+    ABC COMPANY
+    """
+
+    if not text or not aliases:
+        return EMPTY
+
+    label_pattern = build_alias_pattern(aliases)
+
+    if not label_pattern:
+        return EMPTY
+
+    lines = get_lines(text)
+
+    stop_aliases = stop_aliases or []
+
+    stop_pattern = build_alias_pattern(
+        stop_aliases
+    )
+
+    for i, line in enumerate(lines):
+
+        current = line.strip()
+
+        if not current:
+            continue
+
+        # =================================================
+        # TRƯỜNG HỢP 1:
+        # Seller: ABC COMPANY
+        # Seller ABC COMPANY
+        # =================================================
+
+        pattern = (
+            rf"^\s*(?:{label_pattern})"
+            rf"\s*(?::|#|-)?\s*(.+?)\s*$"
+        )
+
+        match = re.match(
+            pattern,
+            current,
+            re.IGNORECASE
+        )
+
+        if match:
+
+            value = clean_value(
+                match.group(1)
+            )
+
+            if value:
+                return value
+
+        # =================================================
+        # TRƯỜNG HỢP 2:
+        # Seller
+        # ABC COMPANY
+        # =================================================
+
+        label_only = re.match(
+            rf"^\s*(?:{label_pattern})"
+            rf"\s*(?::|#|-)?\s*$",
+            current,
+            re.IGNORECASE
+        )
+
+        if label_only:
+
+            for j in range(
+                i + 1,
+                min(i + 4, len(lines))
+            ):
+
+                next_line = lines[j].strip()
+
+                if not next_line:
+                    continue
+
+                # Nếu dòng tiếp theo là field khác
+                # thì không lấy làm value
+                if stop_pattern:
+
+                    if re.match(
+                        rf"^\s*(?:{stop_pattern})"
+                        rf"\s*(?::|#|-|\s|$)",
+                        next_line,
+                        re.IGNORECASE
+                    ):
+                        break
+
+                return clean_value(
+                    next_line
+                )
+
+    return EMPTY
+
+def extract_generic_fields(
+    text,
+    document_type=None
+):
+    """
+    Generic Extraction Engine.
+
+    Nguồn Knowledge:
+    1. field_mapping.json
+    2. Supabase field_aliases
+    3. Database aliases đã được học/xác nhận
+
+    Mục tiêu:
+    Một engine dùng chung cho nhiều loại chứng từ.
+    """
+
+    if not text:
+        return {}
+
+    # ========================================================
+    # CÁC FIELD CHUẨN HỆ THỐNG
+    # ========================================================
+
+    field_config = {
+
+        "EXPORTER": "Exporter",
+
+        "IMPORTER": "Importer",
+
+        "INVOICE_NUMBER": "Invoice Number",
+
+        "INVOICE_DATE": "Invoice Date",
+
+        "CONTRACT_NUMBER": "Contract Number",
+
+        "CONTRACT_DATE": "Contract Date",
+
+        "BL_NUMBER": "B/L Number",
+
+        "GROSS_WEIGHT": "Gross Weight",
+
+        "NET_WEIGHT": "Net Weight",
+
+        "MEASUREMENT": "Measurement",
+
+        "QUANTITY": "Quantity",
+
+        "UNIT_PRICE": "Unit Price",
+
+        "TOTAL_AMOUNT": "Total Amount",
+
+        "CURRENCY": "Currency",
+
+        "INCOTERMS": "Incoterm",
+
+        "VESSEL_VOYAGE": "Vessel / Voyage",
+
+        "PORT_OF_LOADING": "Port of Loading",
+
+        "PORT_OF_DISCHARGE": "Port of Discharge",
+
+        "CONTAINER_NUMBER": "Container Number",
+
+        "SEAL_NUMBER": "Seal Number",
+
+        "HS_CODE": "HS Code",
+
+        "COUNTRY_OF_ORIGIN": "Country of Origin"
+    }
+
+    # ========================================================
+    # LẤY TOÀN BỘ ALIAS TỪ KNOWLEDGE
+    # ========================================================
+
+    alias_map = {}
+
+    for standard_field in field_config:
+
+        aliases = get_database_field_aliases(
+            standard_field,
+            document_type
+        )
+
+        if aliases:
+
+            alias_map[standard_field] = aliases
+
+    # ========================================================
+    # TẠO STOP LABEL
+    #
+    # Khi đang đọc EXPORTER mà gặp BUYER,
+    # không được lấy BUYER làm địa chỉ/value của EXPORTER.
+    # ========================================================
+
+    all_aliases = []
+
+    for aliases in alias_map.values():
+
+        all_aliases.extend(aliases)
+
+    all_aliases = list(
+        dict.fromkeys(all_aliases)
+    )
+
+    # ========================================================
+    # ĐỌC TỪNG FIELD
+    # ========================================================
+
+    extracted = {}
+
+    for standard_field, output_name in field_config.items():
+
+        aliases = alias_map.get(
+            standard_field,
+            []
+        )
+
+        if not aliases:
+            continue
+
+        value = extract_value_after_label(
+            text,
+            aliases,
+            stop_aliases=all_aliases
+        )
+
+        if value == EMPTY:
+            continue
+
+        # ----------------------------------------------------
+        # Lưu theo tên field chuẩn của hệ thống
+        # ----------------------------------------------------
+
+        extracted[output_name] = value
+
+    # ========================================================
+    # CONTEXT EXTRACTION
+    # ========================================================
+
+    if document_type == "PURCHASE CONTRACT":
+
+        contextual = extract_contextual_contract_fields(
+            text
+        )
+
+        for field_name, value in contextual.items():
+
+            if value in [None, "", EMPTY]:
+                continue
+
+            extracted[field_name] = value
+
+    return extracted
+
+
+def extract_contextual_contract_fields(text):
+    """
+    Đọc các field đặc thù của Purchase Contract
+    bằng label/alias từ Knowledge Base + Database.
+
+    Không hard-code số liệu của một chứng từ cụ thể.
+    """
+
+    if not text:
+        return {}
+
+    lines = get_lines(text)
+    result = {}
+
+    # ========================================================
+    # LẤY ALIAS TỪ KNOWLEDGE + DATABASE
+    # ========================================================
+
+    def aliases_for(field, extras=None):
+
+        aliases = get_database_field_aliases(
+            field,
+            "PURCHASE CONTRACT"
+        )
+
+        for item in (extras or []):
+
+            if item not in aliases:
+                aliases.append(item)
+
+        return aliases
+
+    # ========================================================
+    # CONTRACT NUMBER
+    # ========================================================
+
+    contract_aliases = aliases_for(
+        "CONTRACT_NUMBER",
+        [
+            "No.",
+            "No",
+            "Contract No.",
+            "Contract Number",
+            "S/C No.",
+            "S/C Number"
+        ]
+    )
+
+    value = extract_value_after_label(
+        text,
+        contract_aliases
+    )
+
+    if value != EMPTY:
+        result["Contract Number"] = value
+
+    # ========================================================
+    # CONTRACT DATE
+    # ========================================================
+
+    date_aliases = aliases_for(
+        "CONTRACT_DATE",
+        [
+            "Date",
+            "Contract Date",
+            "S/C Date"
+        ]
+    )
+
+    value = extract_value_after_label(
+        text,
+        date_aliases
+    )
+
+    if value != EMPTY:
+        result["Contract Date"] = value
+
+    # ========================================================
+    # EXPORTER / SELLER
+    # ========================================================
+
+    exporter_aliases = aliases_for(
+        "EXPORTER",
+        [
+            "Seller",
+            "Seller Name",
+            "Supplier",
+            "Supplier Name",
+            "Vendor",
+            "Vendor Name"
+        ]
+    )
+
+    value = extract_value_after_label(
+        text,
+        exporter_aliases,
+        stop_aliases=[
+            "Buyer",
+            "Importer",
+            "Consignee",
+            "PO",
+            "Qty",
+            "Quantity",
+            "Payment",
+            "Shipment",
+            "FOB",
+            "CFR",
+            "CIF",
+            "CNF"
+        ]
+    )
+
+    if value != EMPTY:
+        result["Seller / Exporter"] = value
+
+    # ========================================================
+    # IMPORTER / BUYER
+    # ========================================================
+
+    importer_aliases = aliases_for(
+        "IMPORTER",
+        [
+            "Buyer",
+            "Buyer Name",
+            "Importer",
+            "Purchaser",
+            "Purchaser Name"
+        ]
+    )
+
+    value = extract_value_after_label(
+        text,
+        importer_aliases,
+        stop_aliases=[
+            "Seller",
+            "Exporter",
+            "Consignee",
+            "PO",
+            "Qty",
+            "Quantity",
+            "Payment",
+            "Shipment",
+            "FOB",
+            "CFR",
+            "CIF",
+            "CNF"
+        ]
+    )
+
+    if value != EMPTY:
+        result["Buyer / Importer"] = value
+
+    # ========================================================
+    # QUANTITY
+    #
+    # Hỗ trợ:
+    # Qty 32 / 192 / total 224
+    # Quantity: 100 PCS
+    # Total Quantity 224
+    # ========================================================
+
+    quantity_aliases = aliases_for(
+        "QUANTITY",
+        [
+            "Qty",
+            "QTY",
+            "Q'ty",
+            "Quantity",
+            "Total Quantity"
+        ]
+    )
+
+    quantity_pattern = build_alias_pattern(
+        quantity_aliases
+    )
+
+    if quantity_pattern:
+
+        for line in lines:
+
+            match = re.match(
+                rf"^\s*(?:{quantity_pattern})"
+                rf"\s*(?::|#|-)?\s*(.+?)\s*$",
+                line.strip(),
+                re.IGNORECASE
+            )
+
+            if match:
+
+                value = clean_value(
+                    match.group(1)
+                )
+
+                if value:
+                    result["Quantity / Measurement"] = value
+                    break
+
+    # ========================================================
+    # UNIT PRICE
+    #
+    # Hỗ trợ:
+    # Unit Price: 178.65
+    # Unit prices 178.65, 40.05
+    # ========================================================
+
+    unit_price_aliases = aliases_for(
+        "UNIT_PRICE",
+        [
+            "Unit Price",
+            "Unit Prices",
+            "Unit Price(s)",
+            "Price per Unit"
+        ]
+    )
+
+    unit_price_pattern = build_alias_pattern(
+        unit_price_aliases
+    )
+
+    if unit_price_pattern:
+
+        for line in lines:
+
+            match = re.match(
+                rf"^\s*(?:{unit_price_pattern})"
+                rf"\s*(?::|#|-)?\s*(.+?)\s*$",
+                line.strip(),
+                re.IGNORECASE
+            )
+
+            if not match:
+                continue
+
+            value = clean_value(
+                match.group(1)
+            )
+
+            if value:
+                result["Unit Price"] = value
+                break
+
+    # ========================================================
+    # TOTAL AMOUNT
+    #
+    # Ưu tiên "total" + số có phần thập phân
+    # để không nhầm "total 224" của quantity.
+    # ========================================================
+
+    total_aliases = aliases_for(
+        "TOTAL_AMOUNT",
+        [
+            "Total Amount",
+            "Total Value",
+            "Grand Total",
+            "Total"
+        ]
+    )
+
+    total_pattern = build_alias_pattern(
+        total_aliases
+    )
+
+    if total_pattern:
+
+        for line in lines:
+
+            # Tìm số tiền có phần thập phân
+            numbers = re.findall(
+                r"\b\d[\d,]*\.\d{1,2}\b",
+                line
+            )
+
+            if not numbers:
+                continue
+
+            if not re.search(
+                rf"\b(?:{total_pattern})\b",
+                line,
+                re.IGNORECASE
+            ):
+                continue
+
+            # Nếu có nhiều số, lấy số cuối
+            result["Total Amount"] = numbers[-1]
+
+    # ========================================================
+    # PAYMENT TERMS
+    # ========================================================
+
+    payment_aliases = [
+        "Payment",
+        "Payment Terms",
+        "Terms of Payment",
+        "Payment Term"
+    ]
+
+    payment_pattern = build_alias_pattern(
+        payment_aliases
+    )
+
+    if payment_pattern:
+
+        for line in lines:
+
+            match = re.match(
+                rf"^\s*(?:{payment_pattern})"
+                rf"\s*(?::|#|-)?\s*(.+?)\s*$",
+                line.strip(),
+                re.IGNORECASE
+            )
+
+            if match:
+
+                value = clean_value(
+                    match.group(1)
+                )
+
+                if value:
+                    result["Payment Terms"] = value
+                    break
+
+    # ========================================================
+    # TIME OF SHIPMENT
+    # ========================================================
+
+    shipment_aliases = [
+        "Time of Shipment",
+        "Shipment Time",
+        "Shipment",
+        "Shipment Date"
+    ]
+
+    shipment_pattern = build_alias_pattern(
+        shipment_aliases
+    )
+
+    if shipment_pattern:
+
+        for line in lines:
+
+            match = re.match(
+                rf"^\s*(?:{shipment_pattern})"
+                rf"\s*(?::|#|-)?\s*(.+?)\s*$",
+                line.strip(),
+                re.IGNORECASE
+            )
+
+            if match:
+
+                value = clean_value(
+                    match.group(1)
+                )
+
+                if value:
+                    result["Time of Shipment"] = value
+                    break
+
+    # ========================================================
+    # INCOTERM + PLACE OF LOADING
+    #
+    # Ví dụ:
+    # FOB HO CHI MINH
+    # CIF CAT LAI
+    # CNF HO CHI MINH
+    # ========================================================
+
+    incoterm_pattern = (
+        r"\b("
+        r"EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|"
+        r"DAP|DPU|DDP|CNF"
+        r")\b"
+    )
+
+    for line in lines:
+
+        match = re.search(
+            incoterm_pattern,
+            line,
+            re.IGNORECASE
+        )
+
+        if not match:
+            continue
+
+        incoterm = match.group(1).upper()
+
+        result["Incoterm"] = incoterm
+
+        after = line[
+            match.end():
+        ].strip()
+
+        after = re.sub(
+            r"^[,:;\-]+",
+            "",
+            after
+        ).strip()
+
+        if after:
+            result["Place of Loading"] = after
+
+        break
+
+    # ========================================================
+    # EXPLICIT PLACE OF LOADING
+    # ========================================================
+
+    loading_aliases = aliases_for(
+        "PORT_OF_LOADING",
+        [
+            "Place of Loading",
+            "Port of Loading",
+            "Loading Port",
+            "POL"
+        ]
+    )
+
+    value = extract_value_after_label(
+        text,
+        loading_aliases
+    )
+
+    if value != EMPTY:
+        result["Place of Loading"] = value
+
+    # ========================================================
+    # EXPLICIT DESTINATION
+    # ========================================================
+
+    destination_aliases = [
+        "Place of Destination",
+        "Destination",
+        "Port of Discharge",
+        "POD"
+    ]
+
+    value = extract_value_after_label(
+        text,
+        destination_aliases
+    )
+
+    if value != EMPTY:
+        result["Place of Destination"] = value
+
+    return result
 
 # ============================================================
 # SEED KNOWLEDGE TO DATABASE
