@@ -20,6 +20,11 @@ st.set_page_config(
 
 EMPTY = "Không tìm thấy"
 
+# Giới hạn để app ổn định trên Streamlit Cloud
+MAX_FILE_SIZE_MB = 20
+MAX_OCR_PAGES = 30
+OCR_DPI = 250
+
 
 # =========================================================
 # 2. BASIC HELPERS
@@ -145,8 +150,10 @@ def ocr_image_multi(image):
     img = preprocess_image(image)
     outputs = []
 
+    # Ưu tiên tiếng Anh vì phần lớn chứng từ XNK dùng tiếng Anh.
+    # Nếu không có eng+vie thì thử eng.
     for lang in ("eng+vie", "eng"):
-        for psm in (6, 11, 3):
+        for psm in (6, 11):
             try:
                 txt = pytesseract.image_to_string(
                     img,
@@ -197,9 +204,11 @@ def process_pdf(file_bytes):
     try:
         images = convert_from_bytes(
             file_bytes,
-            dpi=300,
+            dpi=OCR_DPI,
             fmt="png",
-            thread_count=2
+            thread_count=2,
+            first_page=1,
+            last_page=MAX_OCR_PAGES
         )
     except Exception as e:
         # Nếu Poppler/OCR không hoạt động thì vẫn dùng text layer.
@@ -208,6 +217,9 @@ def process_pdf(file_bytes):
         return [], 0, "ERROR", str(e)
 
     final_pages = []
+
+    if len(native_pages) > MAX_OCR_PAGES:
+        native_pages = native_pages[:MAX_OCR_PAGES]
 
     for i, image in enumerate(images):
         native = native_pages[i] if i < len(native_pages) else ""
@@ -2551,16 +2563,12 @@ def get_doc_value(
     document_type,
     field
 ):
+    doc = documents.get(document_type, {})
 
-    doc = documents.get(
-        document_type,
-        {}
-    )
+    if not isinstance(doc, dict):
+        return EMPTY
 
-    return doc.get(
-        field,
-        EMPTY
-    )
+    return doc.get(field, EMPTY)
 
 
 def first_available(
@@ -3046,6 +3054,14 @@ st.info(
 
 
 # =========================================================
+# SESSION STATE
+# =========================================================
+
+if "documents_data" not in st.session_state:
+    st.session_state.documents_data = {}
+
+
+# =========================================================
 # UPLOAD
 # =========================================================
 
@@ -3076,61 +3092,71 @@ if uploaded_files:
         for file in uploaded_files:
 
             st.divider()
+            st.subheader(f"📄 {file.name}")
 
-            st.subheader(
-                f"📄 {file.name}"
-            )
-
+            # Không cho file quá lớn làm app Cloud treo/crash.
             file_bytes = file.getvalue()
+            file_size_mb = len(file_bytes) / (1024 * 1024)
 
-            pages, page_count, method, error = process_pdf(
-                file_bytes
-            )
-
-            if error:
-
+            if file_size_mb > MAX_FILE_SIZE_MB:
                 st.error(
-                    f"Lỗi đọc file: {error}"
+                    f"File quá lớn ({file_size_mb:.1f} MB). "
+                    f"Giới hạn hiện tại là {MAX_FILE_SIZE_MB} MB/file."
                 )
-
                 continue
 
-            st.write(
-                f"**Số trang:** {page_count}"
-            )
+            if not file_bytes.startswith(b"%PDF"):
+                st.error("File không phải PDF hợp lệ.")
+                continue
 
-            st.write(
-                f"**Phương pháp đọc:** {method}"
-            )
+            with st.spinner("Đang đọc PDF và OCR..."):
+                try:
+                    pages, page_count, method, error = process_pdf(
+                        file_bytes
+                    )
+                except Exception as e:
+                    st.error(
+                        f"Lỗi xử lý {file.name}: {type(e).__name__}: {e}"
+                    )
+                    continue
 
-            full_text = "\n".join(
-                pages
-            )
+            if error:
+                st.error(f"Lỗi đọc file: {error}")
+                continue
 
-            if not full_text.strip():
-
+            if page_count > MAX_OCR_PAGES:
                 st.warning(
-                    "Không đọc được văn bản."
+                    f"PDF có {page_count} trang. "
+                    f"Hệ thống OCR tối đa {MAX_OCR_PAGES} trang đầu để tránh quá tải."
                 )
 
+            st.write(f"**Số trang:** {page_count}")
+            st.write(f"**Phương pháp đọc:** {method}")
+
+            full_text = "\n".join(pages)
+
+            if not full_text.strip():
+                st.warning(
+                    "Không đọc được văn bản từ PDF. "
+                    "Kiểm tra lại file hoặc OCR."
+                )
                 continue
 
             # ----------------------------------------
             # Detect type
             # ----------------------------------------
+            try:
+                document_type, scores = detect_document_type(
+                    full_text,
+                    file.name
+                )
+            except Exception as e:
+                st.error(
+                    f"Lỗi nhận diện loại chứng từ: {type(e).__name__}: {e}"
+                )
+                continue
 
-            document_type, scores = detect_document_type(
-                full_text,
-                file.name
-            )
-
-            st.write(
-                f"### Loại chứng từ: {document_type}"
-            )
-
-            # ----------------------------------------
-            # Scores
-            # ----------------------------------------
+            st.write(f"### Loại chứng từ: {document_type}")
 
             score_df = pd.DataFrame(
                 [
@@ -3145,10 +3171,7 @@ if uploaded_files:
                 ascending=False
             )
 
-            with st.expander(
-                "🔎 Xem điểm nhận diện"
-            ):
-
+            with st.expander("🔎 Xem điểm nhận diện"):
                 st.dataframe(
                     score_df,
                     use_container_width=True,
@@ -3158,71 +3181,58 @@ if uploaded_files:
             # ----------------------------------------
             # Extract
             # ----------------------------------------
+            try:
+                extracted = extract_document(
+                    document_type,
+                    full_text
+                )
+            except Exception as e:
+                st.error(
+                    f"Lỗi trích xuất dữ liệu: {type(e).__name__}: {e}"
+                )
+                continue
 
-            extracted = extract_document(
-                document_type,
-                full_text
-            )
+            if not isinstance(extracted, dict):
+                st.error("Bộ trích xuất trả về dữ liệu không hợp lệ.")
+                continue
 
             if document_type not in documents:
-
-                documents[
-                    document_type
-                ] = extracted
-
+                documents[document_type] = extracted
             else:
+                # Nếu nhiều file cùng loại, giữ bản có nhiều trường
+                # nhận diện được hơn.
+                old_doc = documents.get(document_type, {})
+                if not isinstance(old_doc, dict):
+                    old_doc = {}
 
-                # Nếu nhiều file cùng loại
-                # ưu tiên file có nhiều dữ liệu hơn
                 old_count = sum(
-                    1
-                    for v in documents[
-                        document_type
-                    ].values()
-                    if v not in [
-                        EMPTY,
-                        None,
-                        ""
-                    ]
+                    1 for v in old_doc.values()
+                    if v not in [EMPTY, None, ""]
                 )
 
                 new_count = sum(
-                    1
-                    for v in extracted.values()
-                    if v not in [
-                        EMPTY,
-                        None,
-                        ""
-                    ]
+                    1 for v in extracted.values()
+                    if v not in [EMPTY, None, ""]
                 )
 
                 if new_count > old_count:
-
-                    documents[
-                        document_type
-                    ] = extracted
+                    documents[document_type] = extracted
 
             # ----------------------------------------
             # Show extraction
             # ----------------------------------------
-
             if extracted:
-
                 extraction_df = pd.DataFrame(
                     [
                         {
                             "Trường dữ liệu": key,
                             "Giá trị": value
                         }
-                        for key, value
-                        in extracted.items()
+                        for key, value in extracted.items()
                     ]
                 )
 
-                st.write(
-                    "### 🔎 Chi tiết nhận diện"
-                )
-
+                st.write("### 🔎 Chi tiết nhận diện")
                 st.dataframe(
                     extraction_df,
                     use_container_width=True,
@@ -3232,19 +3242,17 @@ if uploaded_files:
             # ----------------------------------------
             # Raw text
             # ----------------------------------------
-
-            with st.expander(
-                "📖 Xem nội dung PDF đã đọc"
-            ):
-
+            with st.expander("📖 Xem nội dung PDF đã đọc"):
                 st.text_area(
                     "Văn bản TEXT + OCR",
                     full_text,
-                    height=500
+                    height=500,
+                    key=f"raw_text_{file.name}_{len(full_text)}"
                 )
 
             missing_count = sum(
-                1 for v in extracted.values()
+                1
+                for v in extracted.values()
                 if v in [EMPTY, None, ""]
             ) if extracted else 0
 
@@ -3278,9 +3286,13 @@ if documents:
 
     if len(documents) >= 2:
 
-        cross_df = cross_check_documents(
-            documents
-        )
+        try:
+            cross_df = cross_check_documents(documents)
+        except Exception as e:
+            st.error(
+                f"Lỗi kiểm tra chéo: {type(e).__name__}: {e}"
+            )
+            cross_df = pd.DataFrame()
 
         if not cross_df.empty:
 
@@ -3353,9 +3365,15 @@ if documents:
         "📋 Thông tin hỗ trợ khai báo hải quan"
     )
 
-    customs_df = build_customs_data(
-        documents
-    )
+    try:
+        customs_df = build_customs_data(documents)
+    except Exception as e:
+        st.error(
+            f"Lỗi tạo dữ liệu hỗ trợ khai báo: {type(e).__name__}: {e}"
+        )
+        customs_df = pd.DataFrame(
+            columns=["Trường dữ liệu", "Giá trị", "Nguồn"]
+        )
 
     st.dataframe(
         customs_df,
