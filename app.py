@@ -55,12 +55,17 @@ def save_document_sample(document_type, file_name, raw_text):
             .execute()
         )
 
+        st.sidebar.write(
+            "INSERT result:",
+            result.data
+        )
+
         if result.data:
             return result.data[0]["id"]
 
     except Exception as e:
-        st.warning(
-            f"Không thể lưu document sample: {e}"
+        st.sidebar.error(
+            f"INSERT ERROR: {type(e).__name__}: {e}"
         )
 
     return None
