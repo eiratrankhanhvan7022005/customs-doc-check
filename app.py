@@ -36,7 +36,28 @@ def get_supabase():
 
 supabase = get_supabase()
 
+def save_document_sample(document_type, file_name, raw_text):
+    try:
+        result = (
+            supabase
+            .table("document_samples")
+            .insert({
+                "document_type": document_type,
+                "file_name": file_name,
+                "raw_text": raw_text
+            })
+            .execute()
+        )
 
+        if result.data:
+            return result.data[0]["id"]
+
+    except Exception as e:
+        st.warning(
+            f"Không thể lưu document sample: {e}"
+        )
+
+    return None
 # ============================================================
 # KNOWLEDGE BASE
 # ============================================================
