@@ -2367,7 +2367,7 @@ UNIVERSAL_FIELD_ALIASES = {
 }
 
 UNIVERSAL_OUTPUT = {
-    "EXPORTER": "Seller / Exporter", "IMPORTER": "Buyer / Importer", "CONSIGNEE": "Consignee",
+    "EXPORTER": "Seller / Exporter", "IMPORTER": "Buyer / Importer", "CONSIGNEE": "Consignee", "NOTIFY_PARTY": "Notify Party",
     "INVOICE_NUMBER": "Invoice No.", "INVOICE_DATE": "Invoice Date", "CONTRACT_NUMBER": "Contract No.", "CONTRACT_DATE": "Contract Date",
     "BL_NUMBER": "B/L No.", "GROSS_WEIGHT": "Gross Weight", "NET_WEIGHT": "Net Weight", "MEASUREMENT": "Measurement",
     "QUANTITY": "Quantity", "PACKAGE_COUNT": "Packages", "UNIT_PRICE": "Unit Price", "TOTAL_AMOUNT": "Total Amount", "CURRENCY": "Currency",
@@ -2375,6 +2375,43 @@ UNIVERSAL_OUTPUT = {
     "CONTAINER_NUMBER": "Container No.", "SEAL_NUMBER": "Seal No.", "HS_CODE": "HS Code", "COUNTRY_OF_ORIGIN": "Country of Origin",
     "ETA": "ETA", "ETD": "ETD", "BOOKING_NUMBER": "Booking No.", "PAYMENT_TERMS": "Payment Terms", "SHIPMENT_TIME": "Time of Shipment",
     "DESCRIPTION": "Description of Goods", "PO_NUMBER": "PO No.",
+}
+
+# Universal aliases are intentionally semantic, not sample-specific.
+# They are merged with aliases learned/seeded from the Knowledge Base.
+UNIVERSAL_FIELD_ALIASES = {
+    "EXPORTER": ["Seller", "Seller Name", "Exporter", "Exporter Name", "Shipper", "Supplier", "Vendor", "Manufacturer"],
+    "IMPORTER": ["Buyer", "Buyer Name", "Importer", "Importer Name", "Purchaser", "Customer", "Bill To"],
+    "CONSIGNEE": ["Consignee", "Consignee Name", "Ship To"],
+    "NOTIFY_PARTY": ["Notify Party", "Notify", "Notification Party"],
+    "INVOICE_NUMBER": ["Invoice No.", "Invoice No", "Invoice Number", "Invoice #", "Inv No.", "Inv No"],
+    "INVOICE_DATE": ["Invoice Date", "Date of Invoice"],
+    "CONTRACT_NUMBER": ["Contract No.", "Contract No", "Contract Number", "Sales Contract No.", "Purchase Contract No."],
+    "CONTRACT_DATE": ["Contract Date", "Date of Contract"],
+    "BL_NUMBER": ["B/L No.", "B/L No", "B/L Number", "Bill of Lading No.", "Bill of Lading Number", "BL No.", "BL Number"],
+    "GROSS_WEIGHT": ["Gross Weight", "Gross Wt", "G.W.", "G.W", "GW", "Gross Wt."],
+    "NET_WEIGHT": ["Net Weight", "Net Wt", "N.W.", "N.W", "NW", "Net Wt."],
+    "MEASUREMENT": ["Measurement", "Measurements", "Measure", "Volume", "CBM", "M3", "M³"],
+    "QUANTITY": ["Quantity", "Qty", "QTY", "Q'ty", "QTY.", "No. of Units", "Units"],
+    "PACKAGE_COUNT": ["Packages", "Package Count", "No. of Packages", "Number of Packages", "Total Packages", "Total PKGS", "PKGS", "Cartons", "CTNS"],
+    "UNIT_PRICE": ["Unit Price", "Unit Prices", "Price per Unit", "Unit Cost", "Price/Unit", "PRICE"],
+    "TOTAL_AMOUNT": ["Total Amount", "Grand Total", "Total Value", "Invoice Total", "Amount Due", "AMOUNTS", "Amount"],
+    "CURRENCY": ["Currency", "Currency Code", "Curr."],
+    "INCOTERMS": ["Delivery Terms", "Delivery Term", "Incoterms", "Incoterm", "Terms of Delivery", "Trade Terms"],
+    "VESSEL_VOYAGE": ["Vessel / Voyage", "Vessel/Voyage", "Vessel", "Voyage", "Ocean Vessel"],
+    "PORT_OF_LOADING": ["Port of Loading", "Port of Load", "POL", "Loading Port", "Port of Shipment", "Place of Loading"],
+    "PORT_OF_DISCHARGE": ["Port of Discharge", "Port of Disch.", "POD", "Discharge Port", "Destination Port"],
+    "CONTAINER_NUMBER": ["Container No.", "Container Number", "Container #", "Container", "Container No"],
+    "SEAL_NUMBER": ["Seal No.", "Seal Number", "Seal #", "Seal No"],
+    "HS_CODE": ["HS Code", "HS CODE", "HS No.", "Harmonized Code", "Harmonized System Code"],
+    "COUNTRY_OF_ORIGIN": ["Country of Origin", "Origin Country", "Country Origin", "COO"],
+    "ETA": ["ETA", "Estimated Time of Arrival", "Estimated Arrival"],
+    "ETD": ["ETD", "Estimated Time of Departure", "Estimated Departure"],
+    "BOOKING_NUMBER": ["Booking No.", "Booking No", "Booking Number", "Booking #"],
+    "PAYMENT_TERMS": ["Payment Terms", "Terms of Payment", "Payment Term", "Payment"],
+    "SHIPMENT_TIME": ["Time of Shipment", "Shipment Time", "Shipment Date", "Shipment Before", "Shipment"],
+    "DESCRIPTION": ["Description of Goods", "Goods Description", "Description", "Commodity", "Product Description", "Product", "Kind", "K/D"],
+    "PO_NUMBER": ["PO No.", "PO No", "PO Number", "PO #", "Purchase Order No.", "Purchase Order Number"],
 }
 
 AMBIGUOUS_ALIASES = {
@@ -2385,596 +2422,346 @@ AMBIGUOUS_ALIASES = {
     "PORT_OF_DISCHARGE": {"POD"}, "PORT_OF_LOADING": {"POL"},
 }
 
-VALUE_VALIDATORS = {
-    "INVOICE_NUMBER": lambda v: bool(re.search(r"[A-Z0-9]", v, re.I)) and len(v) <= 60,
-    "CONTRACT_NUMBER": lambda v: bool(re.search(r"[A-Z0-9]", v, re.I)) and len(v) <= 60,
-    "BL_NUMBER": lambda v: bool(re.search(r"[A-Z0-9]", v, re.I)) and len(v) <= 60,
-    "BOOKING_NUMBER": lambda v: bool(re.search(r"[A-Z0-9]", v, re.I)) and len(v) <= 60,
-    "QUANTITY": lambda v: bool(re.search(r"\d", v)),
-    "PACKAGE_COUNT": lambda v: bool(re.search(r"\d", v)),
-    "UNIT_PRICE": lambda v: bool(re.search(r"\d", v)),
-    "TOTAL_AMOUNT": lambda v: bool(re.search(r"\d", v)),
-    "GROSS_WEIGHT": lambda v: bool(re.search(r"\d", v)),
-    "NET_WEIGHT": lambda v: bool(re.search(r"\d", v)),
-    "MEASUREMENT": lambda v: bool(re.search(r"\d", v)),
-    "HS_CODE": lambda v: bool(re.search(r"\d", v)),
-    "CONTAINER_NUMBER": lambda v: bool(re.search(r"\b[A-Z]{4}\s*\d{7}\b", v, re.I)),
-    "SEAL_NUMBER": lambda v: bool(re.search(r"[A-Z0-9]{3,}", v, re.I)),
-    "CURRENCY": lambda v: bool(re.search(r"\b[A-Z]{3}\b|\$|€|£", v, re.I)),
-    "INCOTERMS": lambda v: bool(re.search(r"\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b", v, re.I)),
-    "ETA": lambda v: bool(re.search(r"\d", v)), "ETD": lambda v: bool(re.search(r"\d", v)),
-    "SHIPMENT_TIME": lambda v: bool(re.search(r"\d", v)),
-    "PO_NUMBER": lambda v: bool(re.search(r"[A-Z0-9]", v, re.I)),
+FIELD_VALUE_TYPE = {
+    "INVOICE_NUMBER": "id", "CONTRACT_NUMBER": "id", "BL_NUMBER": "id", "BOOKING_NUMBER": "id",
+    "INVOICE_DATE": "date", "CONTRACT_DATE": "date", "ETA": "date", "ETD": "date", "SHIPMENT_TIME": "date_or_text",
+    "QUANTITY": "number", "PACKAGE_COUNT": "number", "UNIT_PRICE": "number", "TOTAL_AMOUNT": "number",
+    "GROSS_WEIGHT": "number", "NET_WEIGHT": "number", "MEASUREMENT": "number", "HS_CODE": "hs",
+    "CONTAINER_NUMBER": "container", "SEAL_NUMBER": "seal", "CURRENCY": "currency", "INCOTERMS": "incoterm",
+}
+
+FIELD_STOP_GROUPS = {
+    "EXPORTER": ["BUYER", "IMPORTER", "CONSIGNEE", "NOTIFY PARTY", "PO NO", "CONTRACT NO", "DATE", "DELIVERY TERMS"],
+    "IMPORTER": ["CONSIGNEE", "NOTIFY PARTY", "PO NO", "CONTRACT NO", "DATE", "DELIVERY TERMS"],
+    "CONSIGNEE": ["NOTIFY PARTY", "PO NO", "CONTRACT NO", "DATE", "DELIVERY TERMS"],
+    "NOTIFY_PARTY": ["PORT OF", "BOOKING", "VESSEL", "VOYAGE", "CONTAINER", "SEAL"],
+    "PAYMENT_TERMS": ["SHIPMENT", "DELIVERY", "QUANTITY", "QTY", "UNIT PRICE", "PRICE", "AMOUNT", "TOTAL", "DESCRIPTION", "COMMODITY", "PO NO", "CONTRACT NO"],
+    "DESCRIPTION": ["QUANTITY", "QTY", "UNIT PRICE", "PRICE", "AMOUNT", "TOTAL", "PO NO", "CONTRACT NO", "PAYMENT", "SHIPMENT", "DELIVERY"],
+    "SHIPMENT_TIME": ["PAYMENT", "DESCRIPTION", "QUANTITY", "QTY", "UNIT PRICE", "AMOUNT", "TOTAL", "PO NO", "CONTRACT NO"],
 }
 
 
-def _universal_aliases(standard_field, document_type=None):
+def _norm_semantic(s):
+    s = str(s or "").upper().replace("’", "'")
+    s = re.sub(r"[：:]", ":", s)
+    s = re.sub(r"[^A-Z0-9#/'&()._\-]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _universal_aliases(field, document_type=None):
     aliases = []
-    for a in get_database_field_aliases(standard_field, document_type):
+    try:
+        for a in get_database_field_aliases(field, document_type):
+            if str(a).strip() and str(a) not in aliases:
+                aliases.append(str(a).strip())
+    except Exception:
+        pass
+    for a in UNIVERSAL_FIELD_ALIASES.get(field, []):
         if a not in aliases:
             aliases.append(a)
-    for a in UNIVERSAL_FIELD_ALIASES.get(standard_field, []):
-        if a not in aliases:
-            aliases.append(a)
-    blocked = AMBIGUOUS_ALIASES.get(standard_field, set())
+    blocked = AMBIGUOUS_ALIASES.get(field, set())
     return [a for a in aliases if normalize_label_for_learning(a) not in blocked]
 
 
-def _contains_label(text, aliases):
-    pattern = build_alias_pattern(aliases)
-    return bool(pattern and re.search(rf"(?im)(?:^|\s)(?:{pattern})(?:\s|:|#|-|$)", text or ""))
-
-
-def _score_document_profile(text, filename=""):
-    t = normalize_text(text).upper()
-    f = (filename or "").upper()
-    scores = {name: 0.0 for name in DOCUMENT_PROFILES}
-    evidence = {name: [] for name in DOCUMENT_PROFILES}
-    for doc_type, profile in DOCUMENT_PROFILES.items():
-        for anchor in profile["anchors"]:
-            if anchor.upper() in t:
-                scores[doc_type] += 12
-                evidence[doc_type].append(anchor)
-        for strong in profile["strong"]:
-            if strong.upper() in t:
-                scores[doc_type] += 25
-                evidence[doc_type].append(strong)
-        for field in profile["fields"]:
-            if _contains_label(t, _universal_aliases(field, doc_type)):
-                scores[doc_type] += 4
-                evidence[doc_type].append(field)
-    filename_hints = {
-        "COMMERCIAL INVOICE": ["INVOICE", "INV"], "PURCHASE CONTRACT": ["CONTRACT", "SALES CONTRACT", "SC"],
-        "PACKING LIST": ["PACKING", "PL"], "BILL OF LADING": ["BILL", "B_L", "BL"],
-        "CERTIFICATE OF ORIGIN": ["CERTIFICATE", "C_O", "CO"], "BOOKING": ["BOOKING"], "ARRIVAL NOTICE": ["ARRIVAL", "NOTICE", "NOA"],
-    }
-    for doc_type, hints in filename_hints.items():
-        for hint in hints:
-            if hint in f:
-                scores[doc_type] += 4
-                evidence[doc_type].append("filename:" + hint)
-    # Explicit document headings dominate generic Invoice/Booking aliases.
-    explicit = [
-        ("PURCHASE CONTRACT", ["PURCHASE CONTRACT", "SALES CONTRACT", "SALE CONTRACT"], 50),
-        ("ARRIVAL NOTICE", ["ARRIVAL NOTICE", "NOTICE OF ARRIVAL", "THÔNG BÁO HÀNG ĐẾN", "THONG BAO HANG DEN"], 80),
-        ("CERTIFICATE OF ORIGIN", ["CERTIFICATE OF ORIGIN"], 50),
-        ("BILL OF LADING", ["BILL OF LADING"], 45),
-        ("PACKING LIST", ["PACKING LIST"], 45),
-        ("COMMERCIAL INVOICE", ["COMMERCIAL INVOICE", "PROFORMA INVOICE"], 45),
-    ]
-    for doc_type, words, bonus in explicit:
-        if any(w in t for w in words):
-            scores[doc_type] += bonus
-    best = max(scores, key=scores.get)
-    return (best if scores[best] > 0 else "KHÔNG XÁC ĐỊNH"), scores, evidence
-
-
-def detect_document_type(text, filename=""):
-    doc_type, scores, evidence = _score_document_profile(text, filename)
-    return doc_type, scores
-
-
-def _normalize_field_label(s):
-    return re.sub(r"[^a-z0-9]+", " ", str(s or "").lower()).strip()
-
-
-def _label_matches(line, alias):
-    nline = _normalize_field_label(line)
-    nalias = _normalize_field_label(alias)
-    if not nline or not nalias:
-        return False
-    return nline == nalias or bool(re.match(rf"^{re.escape(nalias)}(?:\s|:|#|-)", nline + " "))
-
-
-def _is_probable_field_header(value, all_aliases):
-    if not value:
-        return True
-    u = _normalize_field_label(value)
-    alias_norms = {_normalize_field_label(a) for a in all_aliases if _normalize_field_label(a)}
-    if u in alias_norms:
-        return True
-    # Ghép nhiều header trên một dòng: Qty UnitPrice Amount / Description Quantity.
-    hits = sum(1 for a in alias_norms if re.search(rf"\b{re.escape(a)}\b", u))
-    if hits >= 2 and not re.search(r"\d", value):
-        return True
-    return False
-
-
-def _clean_universal_candidate(value, field, all_aliases):
-    value = clean_value(value)
-    if not value or value == EMPTY or _is_probable_field_header(value, all_aliases):
-        return EMPTY
-    value = value.strip(" |;,-")
-    validator = VALUE_VALIDATORS.get(field)
-    if validator and not validator(value):
-        return EMPTY
-    return value
-
-
-def _find_alias_on_line(line, aliases):
-    """Tìm alias ở đầu dòng; alias dài hơn được ưu tiên."""
-    for alias in sorted(set(aliases), key=len, reverse=True):
-        m = re.match(rf"^\s*{re.escape(alias)}(?=\s|:|#|-|$)(.*)$", line or "", re.I)
-        if m:
-            rest = re.sub(r"^[\s:#\-]+", "", m.group(1)).strip()
-            return alias, rest
-    return None, None
-
-
-def _extract_labeled_value_universal(text, aliases, stop_aliases=None, field=None, all_aliases=None):
-    if not text or not aliases:
-        return EMPTY
-    all_aliases = all_aliases or aliases
-    lines = get_lines(text)
-    stop_aliases = stop_aliases or []
-    stop_pattern = build_alias_pattern(stop_aliases)
-
-    for i, line in enumerate(lines):
-        current = line.strip()
-        if not current:
-            continue
-        alias, rest = _find_alias_on_line(current, aliases)
-        if alias is not None:
-            candidate = _clean_universal_candidate(rest, field, all_aliases)
-            if candidate != EMPTY:
-                if stop_pattern:
-                    mstop = re.search(rf"\s+(?:{stop_pattern})\s*(?::|#|-|\s|$)", candidate, re.I)
-                    if mstop:
-                        candidate = _clean_universal_candidate(candidate[:mstop.start()], field, all_aliases)
-                if candidate != EMPTY:
-                    return candidate
-            # Label đứng riêng → đọc dòng dữ liệu kế tiếp.
-            if not rest:
-                for j in range(i + 1, min(i + 5, len(lines))):
-                    nxt = lines[j].strip()
-                    if not nxt:
-                        continue
-                    if stop_pattern and re.match(rf"^\s*(?:{stop_pattern})\s*(?::|#|-|\s|$)", nxt, re.I):
-                        break
-                    candidate = _clean_universal_candidate(nxt, field, all_aliases)
-                    if candidate != EMPTY:
-                        return candidate
-    return EMPTY
-
-
-def _extract_table_values(text, field, aliases, all_aliases):
-    """Đọc bảng text đơn giản: header có alias, dữ liệu nằm ở dòng kế tiếp.
-    Không giả định vị trí cột cố định; chỉ dùng khi header chứa đúng field.
-    """
-    lines = get_lines(text)
-    alias_pattern = build_alias_pattern(aliases)
-    if not alias_pattern:
-        return EMPTY
-    for i, line in enumerate(lines):
-        if not re.search(rf"(?i)\b(?:{alias_pattern})\b", line):
-            continue
-        if not _is_probable_field_header(line, all_aliases):
-            continue
-        # Nếu ngay sau header có một dòng số liệu, giữ nguyên dòng để không làm mất
-        # các giá trị theo nhiều mặt hàng.
-        for j in range(i + 1, min(i + 4, len(lines))):
-            nxt = lines[j].strip()
-            if not nxt:
-                continue
-            if _is_probable_field_header(nxt, all_aliases):
-                continue
-            candidate = _clean_universal_candidate(nxt, field, all_aliases)
-            if candidate != EMPTY:
-                return candidate
-    return EMPTY
-
-
-def _extract_contract_context(text, all_aliases):
-    """Xử lý notation nghiệp vụ của Contract: No./Date và các label phổ biến.
-    Đây là ngữ nghĩa theo loại chứng từ, không phải parser cho một file cụ thể.
-    """
-    lines = get_lines(text)
-    result = {}
-
-    def first_line(labels, field):
-        value = _extract_labeled_value_universal(text, labels, stop_aliases=all_aliases, field=field, all_aliases=all_aliases)
-        return value
-
-    # Bare No. và Date chỉ được phép map ở Contract sau khi document context đã rõ.
-    if result.get("CONTRACT_NUMBER", EMPTY) == EMPTY:
-        for line in lines:
-            m = re.match(r"^\s*No\.?\s*[:#\-]\s*([^\n]+)$", line, re.I)
-            if m:
-                v = _clean_universal_candidate(m.group(1), "CONTRACT_NUMBER", all_aliases)
-                if v != EMPTY:
-                    result["CONTRACT_NUMBER"] = v
-                    break
-    if result.get("CONTRACT_DATE", EMPTY) == EMPTY:
-        for line in lines:
-            m = re.match(r"^\s*Date\s*[:#\-]\s*([^\n]+)$", line, re.I)
-            if m:
-                v = _clean_universal_candidate(m.group(1), "CONTRACT_DATE", all_aliases)
-                if v != EMPTY:
-                    result["CONTRACT_DATE"] = v
-                    break
-
-    result["EXPORTER"] = first_line(["Seller", "Seller Name", "Exporter", "Supplier", "Vendor"], "EXPORTER")
-    result["IMPORTER"] = first_line(["Buyer", "Buyer Name", "Importer", "Purchaser"], "IMPORTER")
-    result["CONSIGNEE"] = first_line(["Consignee", "Consignee Name"], "CONSIGNEE")
-    result["QUANTITY"] = first_line(["Qty", "QTY", "Quantity", "Q'ty", "No. of Units"], "QUANTITY")
-    result["UNIT_PRICE"] = first_line(["Unit Price", "Unit Prices", "Price per Unit", "Unit Cost"], "UNIT_PRICE")
-    result["TOTAL_AMOUNT"] = first_line(["Total Amount", "Grand Total", "Total Value"], "TOTAL_AMOUNT")
-    # Một dòng Amounts chỉ có ý nghĩa tiền tệ khi có số tiền; không dùng bare Amount làm label tổng quát.
-    if result["TOTAL_AMOUNT"] == EMPTY:
-        for line in lines:
-            if re.match(r"^\s*Amounts?\b", line, re.I) and re.search(r"\d", line):
-                result["TOTAL_AMOUNT"] = clean_value(re.sub(r"^\s*Amounts?\s*[:#-]?\s*", "", line, flags=re.I))
-                break
-    result["PAYMENT_TERMS"] = first_line(["Payment", "Payment Terms", "Terms of Payment"], "PAYMENT_TERMS")
-    result["SHIPMENT_TIME"] = first_line(["Shipment", "Time of Shipment", "Shipment Date"], "SHIPMENT_TIME")
-    return result
-
-
-def _semantic_clean_candidate(value):
-    """Làm sạch candidate nhưng không tự suy diễn dữ liệu nghiệp vụ."""
-    if value is None:
-        return EMPTY
-    value = str(value).replace("\r", " ").replace("\t", " ")
-    value = re.sub(r"\s+", " ", value).strip(" :;-|\t")
-    if not value or value in {"-", "—", "_", "."}:
-        return EMPTY
-    return value
+def _alias_regex(alias):
+    n = _norm_semantic(alias)
+    if not n:
+        return None
+    return re.compile(r"(?<![A-Z0-9])" + r"\s+".join(re.escape(x) for x in n.split()) + r"(?![A-Z0-9])", re.I)
 
 
 def _semantic_lines(text):
     text = normalize_text(text or "")
-    lines = []
-    for raw in text.splitlines():
-        line = re.sub(r"[ \t]+", " ", raw).strip()
-        if line:
-            lines.append(line)
-    return lines
+    return [re.sub(r"[ \t]+", " ", x).strip() for x in text.splitlines() if x.strip()]
 
 
-def _norm_header(text):
-    text = str(text or "").upper()
-    text = re.sub(r"[：:]", ":", text)
-    text = re.sub(r"[\|]+", " ", text)
-    text = re.sub(r"[^A-Z0-9#./&'()_-]+", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
+def _looks_like_date(v):
+    return bool(re.search(r"\b(?:\d{1,2}[-/.][A-Za-z]{3,9}[-/.]\d{2,4}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|[A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?[, -]+\s*\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})\b", v, re.I))
 
 
-def _alias_variants(field, document_type):
-    """Lấy alias từ Knowledge Base/DB, sau đó thêm alias nghiệp vụ an toàn."""
-    aliases = list(_universal_aliases(field, document_type) or [])
-    manual = {
-        "EXPORTER": ["SELLER", "EXPORTER", "SUPPLIER", "VENDOR", "SHIPPER"],
-        "IMPORTER": ["BUYER", "IMPORTER", "PURCHASER"],
-        "CONSIGNEE": ["CONSIGNEE", "CONSIGNEE NAME", "DELIVERY TO"],
-        "NOTIFY_PARTY": ["NOTIFY PARTY", "NOTIFY"],
-        "INVOICE_NUMBER": ["INVOICE NO", "INVOICE NUMBER", "INVOICE #", "INV NO", "INV #"],
-        "INVOICE_DATE": ["INVOICE DATE", "DATE OF INVOICE"],
-        "CONTRACT_NUMBER": ["CONTRACT NO", "CONTRACT NUMBER", "CONTRACT #", "SALES CONTRACT NO", "PURCHASE CONTRACT NO"],
-        "CONTRACT_DATE": ["CONTRACT DATE", "DATE OF CONTRACT"],
-        "BL_NUMBER": ["B/L NO", "B/L NUMBER", "BILL OF LADING NO", "BILL OF LADING NUMBER"],
-        "QUANTITY": ["QTY", "Q'TY", "QUANTITY", "NO OF UNITS", "NUMBER OF UNITS", "UNITS"],
-        "PACKAGE_COUNT": ["NO OF PACKAGES", "NUMBER OF PACKAGES", "TOTAL PACKAGES", "TOTAL PKGS", "PKGS", "PACKAGES", "NO OF PKGS"],
-        "UNIT_PRICE": ["UNIT PRICE", "UNITPRICE", "PRICE/UNIT", "PRICE PER UNIT", "UNIT RATE"],
-        "TOTAL_AMOUNT": ["TOTAL AMOUNT", "AMOUNT", "TOTAL VALUE", "EXTENDED AMOUNT", "LINE AMOUNT", "AMOUNTS"],
-        "CURRENCY": ["CURRENCY", "CURR", "CURRENCY CODE"],
-        "INCOTERMS": ["INCOTERM", "INCOTERMS", "DELIVERY TERMS", "TRADE TERM", "TERMS OF DELIVERY"],
-        "VESSEL_VOYAGE": ["VESSEL/VOYAGE", "VESSEL / VOYAGE", "VESSEL", "VOYAGE", "VOY NO", "VOY-NO"],
-        "PORT_OF_LOADING": ["PORT OF LOADING", "LOADING PORT", "POL"],
-        "PORT_OF_DISCHARGE": ["PORT OF DISCHARGE", "DISCHARGE PORT", "POD"],
-        "CONTAINER_NUMBER": ["CONTAINER NO", "CONTAINER NUMBER", "CONTAINER #", "CONT NO", "CONTAINER"],
-        "SEAL_NUMBER": ["SEAL NO", "SEAL NUMBER", "SEAL #"],
-        "HS_CODE": ["HS CODE", "H.S. CODE", "HS NO", "HS NUMBER"],
-        "COUNTRY_OF_ORIGIN": ["COUNTRY OF ORIGIN", "ORIGIN", "COO"],
-        "ETA": ["ETA", "ESTIMATED TIME OF ARRIVAL"],
-        "ETD": ["ETD", "ESTIMATED TIME OF DEPARTURE"],
-        "BOOKING_NUMBER": ["BOOKING NO", "BOOKING NUMBER", "BOOKING #"],
-        "PAYMENT_TERMS": ["PAYMENT", "PAYMENT TERMS", "TERMS OF PAYMENT"],
-        "SHIPMENT_TIME": ["SHIPMENT", "SHIPMENT DATE", "TIME OF SHIPMENT", "LATEST SHIPMENT", "SHIPMENT BEFORE"],
-        "DESCRIPTION": ["DESCRIPTION", "DESCRIPTION OF GOODS", "COMMODITY", "GOODS DESCRIPTION", "PRODUCT DESCRIPTION", "KIND OF GOODS"],
-        "GROSS_WEIGHT": ["GROSS WEIGHT", "G.W.", "GW", "GROSS WT", "GROSS WT."],
-        "NET_WEIGHT": ["NET WEIGHT", "N.W.", "NW", "NET WT", "NET WT."],
-        "MEASUREMENT": ["MEASUREMENT", "MEAS", "VOLUME", "CBM", "M3"],
-        "PO_NUMBER": ["PO NO", "PO NUMBER", "PO #", "P/O NO", "P/O NUMBER"],
-    }
-    aliases.extend(manual.get(field, []))
-    out=[]
-    seen=set()
-    for x in aliases:
-        x=_semantic_clean_candidate(x)
-        key=_norm_header(x)
-        if not key or key in seen:
-            continue
-        seen.add(key); out.append(x)
-    return sorted(out, key=lambda x: len(_norm_header(x)), reverse=True)
+def _has_number(v):
+    return bool(re.search(r"(?<![A-Z])\d+(?:[,.]\d+)*(?![A-Z])", v, re.I))
 
 
-def _label_regex(alias):
-    """Regex label có biên, chống match 'AMOUNT' vào 'TOTAL AMOUNT'."""
-    a=_norm_header(alias)
-    if not a:
-        return None
-    parts=[re.escape(x) for x in a.split()]
-    body=r"\s+".join(parts)
-    return re.compile(r"(?<![A-Z0-9])"+body+r"(?![A-Z0-9])", re.I)
-
-
-def _is_header_only(value, all_aliases):
-    v=_norm_header(value)
-    if not v:
+def _is_header_only(v, all_aliases):
+    n = _norm_semantic(v)
+    if not n:
         return True
-    for a in all_aliases:
-        if v == _norm_header(a):
-            return True
+    alias_norms = {_norm_semantic(a) for a in all_aliases if _norm_semantic(a)}
+    if n in alias_norms:
+        return True
+    # Table header chains such as QUANTITY - PRICE / UNIT PRICE AMOUNT.
+    hits = sum(1 for a in alias_norms if len(a) > 2 and re.search(rf"(?<![A-Z0-9]){re.escape(a)}(?![A-Z0-9])", n))
+    if hits >= 2 and not re.search(r"\d", v):
+        return True
     return False
 
 
-def _looks_like_number(value):
-    return bool(re.search(r"(?<![A-Z])[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?![A-Z])", value, re.I))
-
-
-def _looks_like_date(value):
-    return bool(re.search(r"\b(?:\d{1,2}[-/.][A-Za-z]{3,9}[-/.]\d{2,4}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|[A-Za-z]{3,9}\s+\d{1,2}[, -]+\d{4})\b", value, re.I))
+def _looks_like_country(v):
+    u = _norm_semantic(v)
+    known = ["VIETNAM", "VIET NAM", "CHINA", "TAIWAN", "KOREA", "SOUTH KOREA", "JAPAN", "USA", "UNITED STATES", "UNITED KINGDOM", "THAILAND", "MALAYSIA", "INDONESIA", "SINGAPORE", "INDIA", "GERMANY", "FRANCE", "ITALY", "CANADA", "AUSTRALIA", "CAMBODIA", "LAOS", "MYANMAR", "PHILIPPINES"]
+    return any(x in u for x in known) or bool(re.search(r"\b[A-Z]{2}\b", u))
 
 
 def _value_valid_for_field(field, value):
-    v=_semantic_clean_candidate(value)
-    if v == EMPTY:
+    v = clean_value(value)
+    if not v or _is_header_only(v, UNIVERSAL_FIELD_ALIASES.get(field, [])):
         return False
-    if field.endswith("_DATE") or field in {"ETA","ETD","SHIPMENT_TIME"}:
-        return _looks_like_date(v) or len(v) >= 4
-    if field in {"QUANTITY","PACKAGE_COUNT","UNIT_PRICE","TOTAL_AMOUNT","GROSS_WEIGHT","NET_WEIGHT","MEASUREMENT"}:
-        return _looks_like_number(v)
-    if field == "CONTAINER_NUMBER":
-        return bool(re.search(r"\b[A-Z]{4}\d{7}\b", v, re.I))
-    if field == "SEAL_NUMBER":
-        return bool(re.search(r"\b[A-Z0-9]{5,20}\b", v, re.I))
-    if field == "BL_NUMBER":
-        return bool(re.search(r"[A-Z0-9][A-Z0-9./_-]{4,}", v, re.I))
-    if field == "HS_CODE":
-        return bool(re.search(r"\b\d{4,12}\b", v))
-    if field == "CURRENCY":
-        return bool(re.search(r"\b(?:USD|EUR|VND|CNY|RMB|JPY|KRW|GBP|AUD|CAD|SGD|HKD)\b|[$€£]", v, re.I))
-    if field == "INCOTERMS":
-        return bool(re.search(r"\b(?:EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b", v, re.I))
+    typ = FIELD_VALUE_TYPE.get(field)
+    if typ == "date": return _looks_like_date(v)
+    if typ == "date_or_text": return _looks_like_date(v) or bool(re.search(r"\b(?:before|after|from|until|within)\b", v, re.I)) and _has_number(v)
+    if typ == "number": return _has_number(v)
+    if typ == "hs": return bool(re.search(r"\b\d{4,12}\b", v))
+    if typ == "container": return bool(re.search(r"\b[A-Z]{4}\s*\d{7}\b", v, re.I))
+    if typ == "seal": return bool(re.search(r"\b[A-Z0-9][A-Z0-9._/-]{3,20}\b", v, re.I)) and not _has_number(v) or bool(re.search(r"\b[A-Z0-9][A-Z0-9._/-]{3,20}\b", v, re.I))
+    if typ == "currency": return bool(re.search(r"\b(?:USD|EUR|VND|CNY|RMB|JPY|KRW|GBP|AUD|CAD|SGD|HKD)\b|[$€£]", v, re.I))
+    if typ == "incoterm": return bool(re.search(r"\b(?:EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b", v, re.I))
+    if field == "BL_NUMBER": return bool(re.search(r"[A-Z0-9][A-Z0-9./_-]{4,40}", v, re.I))
+    if field in {"EXPORTER", "IMPORTER", "CONSIGNEE", "NOTIFY_PARTY"}:
+        bad = ["DATE", "QUANTITY", "PRICE", "AMOUNT", "PAYMENT", "SHIPMENT", "DELIVERY", "COPY", "ENGLISH IN TWO"]
+        return len(v) >= 2 and not any(x in _norm_semantic(v) for x in bad)
+    if field == "COUNTRY_OF_ORIGIN": return _looks_like_country(v)
+    if field == "DESCRIPTION":
+        u = _norm_semantic(v)
+        bad = ["QUANTITY", "UNIT PRICE", "PRICE", "AMOUNT", "TOTAL", "PAYMENT TERMS", "PO NO", "CONTRACT NO"]
+        return len(v) >= 2 and not any(x in u for x in bad) and not _is_header_only(v, UNIVERSAL_FIELD_ALIASES["DESCRIPTION"])
+    if field == "PAYMENT_TERMS":
+        u = _norm_semantic(v)
+        payment_words = ["T/T", "TT", "L/C", "LC", "D/P", "DP", "D/A", "DA", "CAD", "O/A", "OPEN ACCOUNT", "ADVANCE", "PAYMENT", "DAYS", "B/L DATE", "CREDIT"]
+        return len(v) >= 4 and any(x in u for x in payment_words) and not _is_header_only(v, UNIVERSAL_FIELD_ALIASES["PAYMENT_TERMS"])
+    if field == "PORT_OF_LOADING" or field == "PORT_OF_DISCHARGE":
+        u = _norm_semantic(v)
+        return len(v) >= 2 and not any(x in u for x in ["QUANTITY", "PRICE", "AMOUNT", "PAYMENT", "CONTRACT NO", "DATE"])
     return len(v) >= 2
 
 
-def _extract_same_line_value(line, alias, field, all_aliases):
-    m=_label_regex(alias).search(line)
-    if not m:
+def _strip_next_label(value, field, all_aliases):
+    value = clean_value(value)
+    if not value:
         return EMPTY
-    tail=line[m.end():].strip(" :#;-|\t")
-    if not tail:
-        return EMPTY
-    # Nếu tail bắt đầu bằng một label khác, đây chỉ là header/label chain.
-    if _is_header_only(tail, all_aliases):
-        return EMPTY
-    # Cắt trước label tiếp theo nếu hai trường nằm cùng dòng.
-    positions=[]
-    for other in all_aliases:
-        if _norm_header(other)==_norm_header(alias):
+    # Only cut labels that occur after at least one character of candidate value.
+    hits = []
+    for a in all_aliases:
+        m = _alias_regex(a)
+        if not m:
             continue
-        om=_label_regex(other)
-        if om:
-            mm=om.search(tail)
-            if mm and mm.start()>0:
-                positions.append(mm.start())
-    if positions:
-        tail=tail[:min(positions)].strip(" :#;-|\t")
-    return tail if _value_valid_for_field(field, tail) else EMPTY
+        mm = m.search(value)
+        if mm and mm.start() > 0:
+            hits.append(mm.start())
+    if hits:
+        value = value[:min(hits)].strip(" :#;-|,")
+    return value
 
 
-def _extract_label_value(lines, field, aliases, all_aliases):
-    """Đọc label -> value theo nhiều bố cục: cùng dòng, dòng kế, block."""
+def _field_label_hits(line, aliases):
+    hits=[]
+    for a in aliases:
+        rx=_alias_regex(a)
+        if rx:
+            m=rx.search(line)
+            if m: hits.append((m.start(),m.end(),a))
+    return sorted(hits, key=lambda x:(x[0], -(x[1]-x[0])))
+
+
+def _candidate_score(field, candidate, distance, label, line, document_type):
+    if not _value_valid_for_field(field, candidate):
+        return -999
+    score = 100.0
+    score += min(len(_norm_semantic(label)), 30) * 0.4
+    score -= distance * 10
+    if _is_header_only(candidate, sum((UNIVERSAL_FIELD_ALIASES.get(f, []) for f in UNIVERSAL_OUTPUT), [])):
+        score -= 100
+    if field in {"QUANTITY","PACKAGE_COUNT","UNIT_PRICE","TOTAL_AMOUNT"} and _has_number(candidate): score += 15
+    if field in {"INVOICE_DATE","CONTRACT_DATE","ETA","ETD"} and _looks_like_date(candidate): score += 20
+    if field == "PAYMENT_TERMS" and re.search(r"\b(?:T/T|L/C|D/P|D/A|ADVANCE|DAYS|B/L)\b", candidate, re.I): score += 25
+    if field == "DESCRIPTION" and not _has_number(candidate): score += 15
+    if field in {"EXPORTER","IMPORTER","CONSIGNEE"} and re.search(r"\b(?:CO\.?\s*,?\s*LTD|CORPORATION|LIMITED|INC\.?|LLC|COMPANY)\b", candidate, re.I): score += 15
+    if document_type == "PURCHASE CONTRACT" and field in {"CONTRACT_NUMBER","CONTRACT_DATE","PO_NUMBER"}: score += 8
+    return score
+
+
+def _extract_candidates(lines, field, aliases, all_aliases, document_type):
+    candidates=[]
+    stop_aliases=FIELD_STOP_GROUPS.get(field, [])
     for i,line in enumerate(lines):
-        for alias in aliases:
-            if not _label_regex(alias).search(line):
-                continue
-            value=_extract_same_line_value(line, alias, field, all_aliases)
-            if value != EMPTY:
-                return value
-            # Giá trị ở dòng kế tiếp; không vượt qua label khác.
-            vals=[]
-            for j in range(i+1,min(i+4,len(lines))):
-                nxt=lines[j].strip()
-                if any(_label_regex(a).search(nxt) for a in all_aliases):
-                    break
-                if nxt and not _is_header_only(nxt, all_aliases):
-                    vals.append(nxt)
-                    if field not in {"EXPORTER","IMPORTER","CONSIGNEE","NOTIFY_PARTY","DESCRIPTION","PAYMENT_TERMS"}:
-                        break
-            candidate=" ".join(vals)
-            if _value_valid_for_field(field,candidate):
-                return candidate
-    return EMPTY
-
-
-def _extract_table_field(lines, field, aliases, all_aliases):
-    """Nhận diện bảng text: header có Qty/Unit Price/Amount, dữ liệu nằm ở dòng sau."""
-    if field not in {"QUANTITY","PACKAGE_COUNT","UNIT_PRICE","TOTAL_AMOUNT","DESCRIPTION"}:
-        return EMPTY
-    for i,line in enumerate(lines):
-        hits=[]
-        for a in aliases:
-            m=_label_regex(a).search(line)
-            if m:
-                hits.append((m.start(),m.end(),a))
-        if not hits:
-            continue
-        # Nếu dòng là header, tìm tối đa 5 dòng dữ liệu phía dưới.
-        header_positions=sorted(hits)
-        if len(header_positions)==1 and _extract_same_line_value(line,header_positions[0][2],field,all_aliases)!=EMPTY:
-            continue
-        for j in range(i+1,min(i+6,len(lines))):
-            candidate=lines[j]
-            if any(_label_regex(a).search(candidate) for a in all_aliases):
-                break
-            if field=="DESCRIPTION":
-                if len(candidate)>2 and not _looks_like_number(candidate):
-                    return candidate
-            else:
-                nums=re.findall(r"[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?",candidate)
-                if not nums:
+        hits=_field_label_hits(line, aliases)
+        if not hits: continue
+        for pos,end,label in hits:
+            tail=line[end:].strip(" :#;-|\t")
+            if tail:
+                tail=_strip_next_label(tail,field,all_aliases)
+                if tail and _value_valid_for_field(field,tail):
+                    candidates.append((_candidate_score(field,tail,0,label,line,document_type),tail,i,label,"same-line"))
                     continue
-                # Chỉ lấy dữ liệu nếu dòng có cấu trúc dữ liệu, không phải heading.
-                if field=="QUANTITY":
-                    return ", ".join(nums[:8])
-                if field=="UNIT_PRICE":
-                    return ", ".join(nums[:8])
-                if field=="TOTAL_AMOUNT":
-                    return ", ".join(nums[-8:])
-                if field=="PACKAGE_COUNT":
-                    return nums[0]
-    return EMPTY
+            # Label-only line: scan a short block until another field label.
+            vals=[]
+            for j in range(i+1,min(i+6,len(lines))):
+                nxt=lines[j].strip()
+                if _field_label_hits(nxt,all_aliases): break
+                if not nxt: continue
+                # Do not swallow table headings or unrelated prose for scalar fields.
+                if field not in {"EXPORTER","IMPORTER","CONSIGNEE","NOTIFY_PARTY","DESCRIPTION","PAYMENT_TERMS"}:
+                    vals=[nxt]; break
+                vals.append(nxt)
+                # Long free-text fields can span several lines, but stop at a sentence-like boundary.
+                if field in {"PAYMENT_TERMS","DESCRIPTION"} and len(" ".join(vals)) >= 20 and j >= i+2:
+                    break
+            candidate=" ".join(vals)
+            candidate=_strip_next_label(candidate,field,all_aliases)
+            if candidate and _value_valid_for_field(field,candidate):
+                candidates.append((_candidate_score(field,candidate,j-i if vals else 1,label,line,document_type),candidate,i,label,"next-lines"))
+    return sorted(candidates,key=lambda x:x[0],reverse=True)
 
 
-def _extract_contract_semantics(lines):
-    """Fallback ngữ nghĩa cho các dòng tự mô tả trong hợp đồng; không phụ thuộc mẫu file."""
-    out={}
-    joined="\n".join(lines)
-    def set_if(field, value):
-        if value!=EMPTY and field not in out:
-            out[field]=value
-    for line in lines:
-        m=re.match(r"\s*NO\.?\s*[:#-]\s*([A-Z0-9./_-]{3,50})\s*$",line,re.I)
-        if m: set_if("CONTRACT_NUMBER",m.group(1))
-        m=re.match(r"\s*DATE\s*[:#-]\s*([^\n]+)$",line,re.I)
-        if m and _looks_like_date(m.group(1)): set_if("CONTRACT_DATE",m.group(1))
-        m=re.match(r"\s*(SELLER|BUYER|CONSIGNEE)\s+(.+)$",line,re.I)
-        if m: set_if({"SELLER":"EXPORTER","BUYER":"IMPORTER","CONSIGNEE":"CONSIGNEE"}[m.group(1).upper()],m.group(2))
-        m=re.match(r"\s*PO\s*(?:NO\.?|NUMBER|#)\s*[:#-]?\s*([A-Z0-9./_-]+)",line,re.I)
-        if m: set_if("PO_NUMBER",m.group(1))
-        m=re.match(r"\s*Q(?:TY|T['’]?Y)\s+(.+)$",line,re.I)
-        if m: set_if("QUANTITY",m.group(1))
-        m=re.match(r"\s*UNIT\s+PRICES?\s+(.+)$",line,re.I)
-        if m: set_if("UNIT_PRICE",m.group(1))
-        m=re.match(r"\s*AMOUNTS?\s+(.+)$",line,re.I)
-        if m: set_if("TOTAL_AMOUNT",m.group(1))
-        m=re.match(r"\s*SHIPMENT\s+BEFORE\s+(.+)$",line,re.I)
-        if m: set_if("SHIPMENT_TIME",m.group(1))
-        m=re.match(r"\s*PAYMENT\s+(.+)$",line,re.I)
-        if m: set_if("PAYMENT_TERMS",m.group(1))
-    # Dòng chứa Incoterm + địa điểm: chỉ coi địa điểm là POL nếu sau term có location.
-    m=re.search(r"\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b\s+([A-Z][A-Z .,'()/-]{2,80})",joined,re.I)
-    if m:
-        set_if("INCOTERMS",m.group(1).upper())
-        loc=_semantic_clean_candidate(m.group(2))
-        if loc and not _is_header_only(loc, list(sum([_alias_variants(f,None) for f in UNIVERSAL_OUTPUT],[]))):
-            set_if("PORT_OF_LOADING",loc)
-    # Dòng hàng hóa ngắn sau marker K/D, Description, Goods.
-    for line in lines:
-        m=re.match(r"\s*(?:K/D|KIND|GOODS|COMMODITY|DESCRIPTION)\s*[:#-]?\s*(.+)$",line,re.I)
-        if m:
-            v=_semantic_clean_candidate(m.group(1))
-            if v and not _is_header_only(v, all_aliases_global if 'all_aliases_global' in globals() else []):
-                set_if("DESCRIPTION",v)
-    return out
+def _extract_table_candidates(lines, field, aliases, all_aliases, document_type):
+    if field not in {"DESCRIPTION","QUANTITY","PACKAGE_COUNT","UNIT_PRICE","TOTAL_AMOUNT"}:
+        return []
+    out=[]
+    for i,line in enumerate(lines):
+        hits=_field_label_hits(line,aliases)
+        if not hits: continue
+        # A row containing several column headers is a table header, not a value.
+        header_count=sum(1 for f in ["QUANTITY","PACKAGE_COUNT","UNIT_PRICE","TOTAL_AMOUNT","DESCRIPTION"] if _field_label_hits(line,_universal_aliases(f,document_type)))
+        if header_count >= 2:
+            for j in range(i+1,min(i+8,len(lines))):
+                row=lines[j].strip()
+                if _field_label_hits(row,all_aliases): break
+                if not row: continue
+                if field=="DESCRIPTION":
+                    # Product text should not be purely numeric and should not be another header.
+                    if _value_valid_for_field(field,row) and not _is_header_only(row,all_aliases):
+                        out.append((_candidate_score(field,row,j-i,"TABLE",line,document_type)+20,row,j,"TABLE","table"))
+                        break
+                else:
+                    nums=re.findall(r"[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?",row)
+                    if nums:
+                        value=", ".join(nums)
+                        if _value_valid_for_field(field,value):
+                            # Preserve all row numbers for later semantic cross-check; do not call the first number quantity blindly.
+                            out.append((_candidate_score(field,value,j-i,"TABLE",line,document_type)+15,value,j,"TABLE","table"))
+                            break
+    return sorted(out,key=lambda x:x[0],reverse=True)
+
+
+def _contract_semantic_candidates(lines, field):
+    out=[]
+    patterns={
+        "CONTRACT_NUMBER": [r"^\s*NO\.?\s*[:#-]\s*([A-Z0-9./_-]{3,50})\s*$"],
+        "CONTRACT_DATE": [r"^\s*DATE\s*[:#-]\s*(.+?)\s*$"],
+        "PO_NUMBER": [r"^\s*PO\s*(?:NO\.?|NUMBER|#)\s*[:#-]?\s*([A-Z0-9./_-]+)"],
+        "QUANTITY": [r"^\s*Q(?:TY|T['’]?Y)\s*[:#-]?\s*(.+)$"],
+        "UNIT_PRICE": [r"^\s*UNIT\s+PRICES?\s*[:#-]?\s*(.+)$"],
+        "TOTAL_AMOUNT": [r"^\s*AMOUNTS?\s*[:#-]?\s*(.+)$"],
+        "PAYMENT_TERMS": [r"^\s*PAYMENT(?:\s+TERMS?)?\s*[:#-]?\s*(.+)$"],
+        "SHIPMENT_TIME": [r"^\s*SHIPMENT\s+BEFORE\s*[:#-]?\s*(.+)$", r"^\s*(?:TIME\s+OF\s+SHIPMENT|SHIPMENT\s+DATE)\s*[:#-]?\s*(.+)$"],
+    }
+    for pat in patterns.get(field,[]):
+        for i,line in enumerate(lines):
+            m=re.match(pat,line,re.I)
+            if not m: continue
+            v=clean_value(m.group(1))
+            if _value_valid_for_field(field,v):
+                out.append((130-i*0.1,v,i,"semantic","contract"))
+    return sorted(out,key=lambda x:x[0],reverse=True)
 
 
 def extract_universal_fields(text, document_type=None):
-    """ENGINE CHÍNH: linh hoạt bố cục, nhưng chỉ nhận các trường chuẩn đã định nghĩa.
+    """Universal semantic engine for ALL supported document types and layouts.
 
-    Luồng: Knowledge alias -> tìm evidence -> kiểm tra kiểu giá trị -> chuẩn hóa.
-    Không dùng tên file/mẫu chứng từ để quyết định giá trị.
+    It never treats nearby OCR text as a value without field-specific validation.
+    Knowledge Base supplies aliases/context; this engine generates candidates,
+    scores them, rejects invalid/header candidates, and only then returns a field.
     """
     if not text:
         return {}
     doc_type=document_type or detect_document_type(text)[0]
     lines=_semantic_lines(text)
-
     fields=list(UNIVERSAL_OUTPUT.keys())
-    aliases_by_field={f:_alias_variants(f,doc_type) for f in fields}
-    all_aliases=[]
-    for vals in aliases_by_field.values(): all_aliases.extend(vals)
-    all_aliases=list(dict.fromkeys(all_aliases))
+    aliases_by_field={f:_universal_aliases(f,doc_type) for f in fields}
+    all_aliases=list(dict.fromkeys(a for vals in aliases_by_field.values() for a in vals))
     result={}
 
-    def put(field,value):
-        value=_semantic_clean_candidate(value)
-        if value!=EMPTY:
-            result[UNIVERSAL_OUTPUT[field]]=value
-
-    # 1. Label/evidence extraction.
     for field in fields:
-        value=_extract_label_value(lines,field,aliases_by_field[field],all_aliases)
-        if value==EMPTY:
-            value=_extract_table_field(lines,field,aliases_by_field[field],all_aliases)
-        if value!=EMPTY:
-            put(field,value)
+        candidates=[]
+        candidates.extend(_extract_candidates(lines,field,aliases_by_field[field],all_aliases,doc_type))
+        candidates.extend(_extract_table_candidates(lines,field,aliases_by_field[field],all_aliases,doc_type))
+        candidates.extend(_contract_semantic_candidates(lines,field) if doc_type=="PURCHASE CONTRACT" else [])
 
-    # 2. Contextual contract semantics. Chỉ bổ sung field còn thiếu.
-    contextual=_extract_contract_semantics(lines) if doc_type=="PURCHASE CONTRACT" else {}
-    for field,value in contextual.items():
-        if UNIVERSAL_OUTPUT.get(field) not in result:
-            put(field,value)
+        # Format-independent legacy detectors are SECONDARY evidence only.
+        fallback_map={
+            "GROSS_WEIGHT": lambda: extract_weight(text,"gross"),
+            "NET_WEIGHT": lambda: extract_weight(text,"net"),
+            "CONTAINER_NUMBER": lambda: extract_containers(text),
+            "INCOTERMS": lambda: extract_incoterm(text),
+            "BL_NUMBER": lambda: extract_bl_number(text),
+            "PORT_OF_LOADING": lambda: extract_port(text,"loading"),
+            "PORT_OF_DISCHARGE": lambda: extract_port(text,"discharge"),
+        }
+        if field in fallback_map:
+            try:
+                fv=clean_value(fallback_map[field]())
+                if fv and _value_valid_for_field(field,fv):
+                    candidates.append((45,fv,999,"fallback","fallback"))
+            except Exception:
+                pass
 
-    # 3. Format-independent validators already present in system: secondary evidence only.
-    fallbacks={
-        "GROSS_WEIGHT": lambda: extract_weight(text,"gross"),
-        "NET_WEIGHT": lambda: extract_weight(text,"net"),
-        "CONTAINER_NUMBER": lambda: extract_containers(text),
-        "INCOTERMS": lambda: extract_incoterm(text),
-        "BL_NUMBER": lambda: extract_bl_number(text),
-        "PORT_OF_LOADING": lambda: extract_port(text,"loading"),
-        "PORT_OF_DISCHARGE": lambda: extract_port(text,"discharge"),
-    }
-    for field,fn in fallbacks.items():
-        key=UNIVERSAL_OUTPUT.get(field)
-        if key not in result:
-            try: put(field,fn())
-            except Exception: pass
+        # Contract notation: FOB HO CHI MINH is valid evidence for delivery term + named place,
+        # but only the explicitly adjacent place is considered; no arbitrary nearby line is used.
+        if field in {"INCOTERMS","PORT_OF_LOADING"}:
+            for line_no,line in enumerate(lines):
+                m=re.search(r"\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b(?:\s+|[:/-]+)([A-Z][A-Z0-9 .,'()/-]{2,80})?",line,re.I)
+                if not m: continue
+                if field=="INCOTERMS": candidates.append((125,m.group(1).upper(),line_no,"Incoterm","context"))
+                elif m.group(2):
+                    loc=clean_value(m.group(2))
+                    if _value_valid_for_field("PORT_OF_LOADING",loc) and not _is_header_only(loc,all_aliases):
+                        candidates.append((95,loc,line_no,"Incoterm","context"))
 
-    # 4. Container/seal relationship: seal only from actual container-seal evidence.
-    if UNIVERSAL_OUTPUT.get("SEAL_NUMBER") not in result:
-        try:
-            pairs=extract_container_seal_pairs(text)
-            if isinstance(pairs,tuple) and len(pairs)>1: put("SEAL_NUMBER",pairs[1])
-        except Exception: pass
+        # Remove exact duplicate values while retaining best score.
+        best={}
+        for c in candidates:
+            key=_norm_semantic(c[1])
+            if key and (key not in best or c[0]>best[key][0]): best[key]=c
+        candidates=sorted(best.values(),key=lambda x:x[0],reverse=True)
+        if candidates:
+            value=candidates[0][1]
+            if _value_valid_for_field(field,value):
+                result[UNIVERSAL_OUTPUT[field]]=clean_value(value)
 
-    # 5. Vessel + voyage: không ghép header vào value.
-    if UNIVERSAL_OUTPUT.get("VESSEL_VOYAGE") not in result:
-        try:
-            vessel=extract_vessel(text); voyage=extract_voyage(text)
-            parts=[x for x in [vessel,voyage] if x not in [None,EMPTY,""]]
-            if parts: put("VESSEL_VOYAGE"," / ".join(parts))
-        except Exception: pass
+    # Hard semantic guardrails that apply to every document type.
+    # Buyer/Importer and Consignee are separate roles; never let Consignee fill Buyer.
+    if result.get("Buyer / Importer") == result.get("Consignee"):
+        buyer_candidates=_extract_candidates(lines,"IMPORTER",aliases_by_field["IMPORTER"],all_aliases,doc_type)
+        if buyer_candidates:
+            result["Buyer / Importer"]=buyer_candidates[0][1]
 
-    # 6. Incoterm + địa điểm là một notation hợp lệ; chỉ lấy địa điểm nếu nó đứng ngay sau Incoterm.
-    if UNIVERSAL_OUTPUT.get("INCOTERMS") not in result:
-        m=re.search(r"\b(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP|CNF)\b",text,re.I)
-        if m: put("INCOTERMS",m.group(1).upper())
-
-    # 7. Không cho Consignee ghi đè Importer/Buyer.
-    if "Buyer / Importer" in result and result["Buyer / Importer"]==result.get("Consignee"):
-        buyer=_extract_label_value(lines,"IMPORTER",aliases_by_field["IMPORTER"],all_aliases)
-        if buyer!=EMPTY: result["Buyer / Importer"]=buyer
-
-    # 8. Không cho bảng header trở thành dữ liệu.
-    for key,value in list(result.items()):
-        if _is_header_only(value,all_aliases):
+    # Never output a known table-header chain as a value.
+    for key in list(result):
+        field=next((f for f,k in UNIVERSAL_OUTPUT.items() if k==key),None)
+        if field and _is_header_only(result[key],all_aliases):
             del result[key]
 
+    # Split vessel/voyage internally when the source contains explicit separate labels.
+    # Output remains backward-compatible as one field for the existing UI.
+    if "Vessel / Voyage" not in result:
+        vessel=EMPTY; voyage=EMPTY
+        try: vessel=clean_value(extract_vessel(text))
+        except Exception: pass
+        try: voyage=clean_value(extract_voyage(text))
+        except Exception: pass
+        if vessel and voyage:
+            result["Vessel / Voyage"]=f"{vessel} / {voyage}"
+        elif vessel:
+            result["Vessel / Voyage"]=vessel
+        elif voyage:
+            result["Vessel / Voyage"]=voyage
+
     return result
+
+
+def extract_document(document_type, text):
+    """All document types use the same semantic engine; legacy parsers are fallback helpers only."""
+    return extract_universal_fields(text, document_type)
 
 # =========================================================
 # 13. COMMERCIAL INVOICE - LEGACY FALLBACK PARSER
@@ -4668,263 +4455,60 @@ def cross_check_documents(documents):
 # =========================================================
 
 def build_customs_data(documents):
-
-    invoice = documents.get(
-        "COMMERCIAL INVOICE",
-        {}
-    )
-
-    packing = documents.get(
-        "PACKING LIST",
-        {}
-    )
-
-    bl = documents.get(
-        "BILL OF LADING",
-        {}
-    )
-
-    booking = documents.get(
-        "BOOKING",
-        {}
-    )
-
-    data = [
-
-        [
-            "Người xuất khẩu",
-            invoice.get(
-                "Seller / Exporter",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Địa chỉ người xuất khẩu",
-            invoice.get(
-                "Seller Address",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Người nhập khẩu",
-            invoice.get(
-                "Buyer / Importer",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Số Invoice",
-            invoice.get(
-                "Invoice No.",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Ngày Invoice",
-            invoice.get(
-                "Invoice Date",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Số hợp đồng",
-            invoice.get(
-                "Contract No.",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Ngày hợp đồng",
-            invoice.get(
-                "Contract Date",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Trị giá hóa đơn",
-            invoice.get(
-                "Total Amount",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Loại tiền",
-            invoice.get(
-                "Currency",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Điều kiện giao hàng",
-            invoice.get(
-                "Delivery Terms",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Mã / Số B/L",
-            first_available(
-                documents,
-                ["B/L No."]
-            ),
-            "Invoice / B/L / Booking"
-        ],
-
-        [
-            "Cảng xếp hàng",
-            first_available(
-                documents,
-                ["Port of Loading"]
-            ),
-            "Invoice / B/L / Booking"
-        ],
-
-        [
-            "Cảng dỡ hàng",
-            first_available(
-                documents,
-                ["Port of Discharge"]
-            ),
-            "Invoice / B/L / Booking"
-        ],
-
-        [
-            "Container No.",
-            first_available(
-                documents,
-                ["Container No."]
-            ),
-            "Invoice / PL / B/L / Booking"
-        ],
-
-        [
-            "Seal No.",
-            first_available(
-                documents,
-                ["Seal No."]
-            ),
-            "Invoice / PL / B/L / Arrival Notice"
-        ],
-
-        [
-            "Tàu",
-            first_available(
-                documents,
-                ["Vessel"]
-            ),
-            "B/L / Arrival Notice / Booking"
-        ],
-
-        [
-            "Chuyến",
-            first_available(
-                documents,
-                ["Voyage"]
-            ),
-            "B/L / Arrival Notice / Booking"
-        ],
-
-        [
-            "ETA",
-            first_available(
-                documents,
-                ["ETA"]
-            ),
-            "Arrival Notice"
-        ],
-
-        [
-            "Gross Weight",
-            first_available(
-                documents,
-                ["Gross Weight"]
-            ),
-            "Invoice / PL / B/L / Arrival Notice"
-        ],
-
-        [
-            "Net Weight",
-            first_available(
-                documents,
-                ["Net Weight"]
-            ),
-            "Invoice / PL"
-        ],
-
-        [
-            "Số lượng",
-            invoice.get(
-                "Quantity",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Đơn giá",
-            invoice.get(
-                "Unit Price",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Mô tả hàng hóa",
-            invoice.get(
-                "Description of Goods",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Commodity",
-            invoice.get(
-                "Commodity",
-                EMPTY
-            ),
-            "Commercial Invoice"
-        ],
-
-        [
-            "Xuất xứ",
-            first_available(
-                documents,
-                ["Country of Origin"]
-            ),
-            "Invoice / C/O"
-        ]
+    """Hợp nhất dữ liệu từ TOÀN BỘ bộ chứng từ, không lấy Invoice làm nguồn duy nhất."""
+    order = [
+        "COMMERCIAL INVOICE", "PURCHASE CONTRACT", "PACKING LIST",
+        "BILL OF LADING", "BOOKING", "CERTIFICATE OF ORIGIN", "ARRIVAL NOTICE"
     ]
+    labels = {
+        "Seller / Exporter": ("Người xuất khẩu", "Invoice / Contract / PL / B/L / C/O"),
+        "Seller Address": ("Địa chỉ người xuất khẩu", "Invoice / Contract / PL / B/L / C/O"),
+        "Buyer / Importer": ("Người nhập khẩu", "Invoice / Contract / C/O"),
+        "Consignee": ("Người nhận hàng", "Invoice / PL / B/L / C/O"),
+        "Invoice No.": ("Số Invoice", "Commercial Invoice"),
+        "Invoice Date": ("Ngày Invoice", "Commercial Invoice"),
+        "Contract No.": ("Số hợp đồng", "Purchase Contract / Invoice"),
+        "Contract Date": ("Ngày hợp đồng", "Purchase Contract / Invoice"),
+        "Total Amount": ("Trị giá hóa đơn", "Commercial Invoice / Contract"),
+        "Currency": ("Loại tiền", "Commercial Invoice / Contract"),
+        "Delivery Terms": ("Điều kiện giao hàng", "Invoice / Contract"),
+        "B/L No.": ("Mã / Số B/L", "B/L / Arrival Notice / Invoice"),
+        "Port of Loading": ("Cảng xếp hàng", "B/L / Booking / Invoice / Contract"),
+        "Port of Discharge": ("Cảng dỡ hàng", "B/L / Booking / Arrival Notice"),
+        "Container No.": ("Container No.", "PL / B/L / Booking / Arrival Notice"),
+        "Seal No.": ("Seal No.", "PL / B/L / Arrival Notice"),
+        "Vessel / Voyage": ("Tàu / Chuyến", "B/L / Booking / Arrival Notice"),
+        "ETA": ("ETA", "Arrival Notice / B/L / Booking"),
+        "ETD": ("ETD", "Booking / B/L / Invoice"),
+        "Gross Weight": ("Gross Weight", "Invoice / PL / B/L"),
+        "Net Weight": ("Net Weight", "Invoice / PL"),
+        "Quantity": ("Số lượng", "Invoice / Contract / PL"),
+        "Packages": ("Số kiện", "PL / Invoice / B/L"),
+        "Unit Price": ("Đơn giá", "Invoice / Contract"),
+        "Description of Goods": ("Mô tả hàng hóa", "Invoice / Contract / PL / B/L"),
+        "HS Code": ("Mã HS", "Invoice / PL / C/O"),
+        "Country of Origin": ("Xuất xứ", "C/O / Invoice / PL"),
+        "Payment Terms": ("Điều khoản thanh toán", "Contract / Invoice"),
+        "PO No.": ("PO No.", "Contract / Invoice"),
+        "Time of Shipment": ("Thời gian giao hàng", "Contract / Booking / Invoice"),
+    }
 
-    return pd.DataFrame(
-        data,
-        columns=[
-            "Trường dữ liệu",
-            "Giá trị",
-            "Nguồn"
-        ]
-    )
+    def find_value(field):
+        for dt in order:
+            doc = documents.get(dt, {})
+            if not isinstance(doc, dict):
+                continue
+            v = doc.get(field, EMPTY)
+            if v not in [None, "", EMPTY]:
+                return v, dt
+        return EMPTY, EMPTY
+
+    rows=[]
+    for field,(label,source_hint) in labels.items():
+        value,source=find_value(field)
+        rows.append([label,value,source if source else source_hint])
+
+    return pd.DataFrame(rows, columns=["Trường dữ liệu","Giá trị","Nguồn"])
 
 
 # =========================================================
