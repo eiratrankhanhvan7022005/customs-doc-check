@@ -150,6 +150,7 @@ LEARNING_RULES_KB = load_json_knowledge("learning_rules.json")
 MAX_FILE_SIZE_MB = 20
 MAX_OCR_PAGES = 30
 OCR_DPI = 250
+MIN_EXTRACTED_FIELDS_BEFORE_OCR_FALLBACK = 3
 
 # ============================================================
 # DATABASE KNOWLEDGE
@@ -382,6 +383,28 @@ def get_database_field_aliases(
 
             if alias and alias not in aliases:
                 aliases.append(alias)
+
+    notation_groups = DOCUMENT_NOTATIONS_KB.get(
+        "DOCUMENT_NOTATIONS_DATABASE",
+        {}
+    )
+
+    if isinstance(notation_groups, dict):
+        for entries in notation_groups.values():
+            if not isinstance(entries, list):
+                continue
+
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+
+                if entry.get("standard") != standard_field:
+                    continue
+
+                alias = str(entry.get("raw", "")).strip()
+
+                if alias and alias not in aliases:
+                    aliases.append(alias)
 
     # =====================================================
     # 2. LẤY TỪ DATABASE field_aliases
@@ -4468,9 +4491,80 @@ def extract_document(
     )
 
 
+def count_extracted_fields(extracted):
+    if not isinstance(extracted, dict):
+        return 0
+
+    return sum(
+        1
+        for value in extracted.values()
+        if value not in [None, "", EMPTY]
+    )
+
+
+def analyze_document_text(text, file_name):
+    """Detect and extract one text candidate for an uploaded file."""
+    document_type, scores = detect_document_type(text, file_name)
+    extracted = extract_document(document_type, text)
+
+    return document_type, scores, extracted
+
+
+def should_try_ocr_fallback(method, document_type, extracted):
+    """Retry with OCR when native text yields no type or too few fields."""
+    return (
+        method == "PDF TEXT"
+        and (
+            document_type == "UNKNOWN"
+            or count_extracted_fields(extracted)
+            < MIN_EXTRACTED_FIELDS_BEFORE_OCR_FALLBACK
+        )
+    )
+
+
+def is_better_extraction(candidate_type, candidate_scores, candidate_data,
+                         current_type, current_scores, current_data):
+    """Prefer more extracted fields, then a stronger document-type score."""
+    candidate_count = count_extracted_fields(candidate_data)
+    current_count = count_extracted_fields(current_data)
+
+    if candidate_count != current_count:
+        return candidate_count > current_count
+
+    candidate_score = candidate_scores.get(candidate_type, 0)
+    current_score = current_scores.get(current_type, 0)
+
+    return candidate_score > current_score
+
+
 # =========================================================
 # 18. CROSS CHECK
 # =========================================================
+
+FIELD_VALUE_KEYS = {
+    "Invoice/Reference No.": ("Invoice No.", "Invoice/Reference No."),
+    "Date": ("Invoice Date", "Date"),
+    "Shipper": ("Seller / Exporter", "Shipper", "Exporter"),
+    "Exporter": ("Seller / Exporter", "Exporter", "Shipper"),
+    "Commodity": ("Description of Goods", "Commodity"),
+    "Total Pallets": ("Packages", "Total Pallets"),
+    "Incoterm": ("Delivery Terms", "Incoterm"),
+    "Place of Loading": ("Port of Loading", "Place of Loading"),
+    "Place of Destination": ("Port of Discharge", "Place of Destination"),
+}
+
+
+def get_document_field(doc, field):
+    if not isinstance(doc, dict):
+        return EMPTY
+
+    for key in FIELD_VALUE_KEYS.get(field, (field,)):
+        value = doc.get(key, EMPTY)
+
+        if value not in [None, "", EMPTY]:
+            return value
+
+    return EMPTY
 
 def get_doc_value(
     documents,
@@ -4479,10 +4573,7 @@ def get_doc_value(
 ):
     doc = documents.get(document_type, {})
 
-    if not isinstance(doc, dict):
-        return EMPTY
-
-    return doc.get(field, EMPTY)
+    return get_document_field(doc, field)
 
 
 def first_available(
@@ -4512,10 +4603,7 @@ def first_available(
 
         for field in fields:
 
-            value = doc.get(
-                field,
-                EMPTY
-            )
+            value = get_document_field(doc, field)
 
             if value not in [
                 None,
@@ -4566,8 +4654,7 @@ def cross_check_documents(documents):
         ("Container", "Container No.", {"COMMERCIAL INVOICE": "Container No.", "PACKING LIST": "Container No.", "BILL OF LADING": "Container No.", "ARRIVAL NOTICE": "Container No.", "BOOKING": "Container No."}, "containers"),
         ("Container", "Seal No.", {"COMMERCIAL INVOICE": "Seal No.", "PACKING LIST": "Seal No.", "BILL OF LADING": "Seal No.", "ARRIVAL NOTICE": "Seal No."}, "id"),
         ("Container", "Container Type", {"BILL OF LADING": "Container Type", "ARRIVAL NOTICE": "Container Type", "PACKING LIST": "Container Type"}, "text"),
-        ("Vận chuyển", "Vessel", {"BILL OF LADING": "Vessel", "ARRIVAL NOTICE": "Vessel", "BOOKING": "Vessel"}, "text"),
-        ("Vận chuyển", "Voyage", {"BILL OF LADING": "Voyage", "ARRIVAL NOTICE": "Voyage", "BOOKING": "Voyage"}, "id"),
+        ("Vận chuyển", "Vessel / Voyage", {"BILL OF LADING": "Vessel / Voyage", "ARRIVAL NOTICE": "Vessel / Voyage", "BOOKING": "Vessel / Voyage"}, "text"),
         ("Vận chuyển", "Port of Loading", {"COMMERCIAL INVOICE": "Port of Loading", "BILL OF LADING": "Port of Loading", "ARRIVAL NOTICE": "Port of Loading", "BOOKING": "Port of Loading", "PURCHASE CONTRACT": "Place of Loading"}, "port"),
         ("Vận chuyển", "Port of Discharge", {"COMMERCIAL INVOICE": "Port of Discharge", "BILL OF LADING": "Port of Discharge", "ARRIVAL NOTICE": "Port of Discharge", "BOOKING": "Port of Discharge", "PURCHASE CONTRACT": "Place of Destination"}, "port"),
         ("Vận chuyển", "Place of Delivery", {"BILL OF LADING": "Place of Delivery", "ARRIVAL NOTICE": "Place of Delivery"}, "port"),
@@ -4662,7 +4749,7 @@ def cross_check_documents(documents):
 
     for group, label, field_map, kind in specs:
         applicable = {doc_type: field for doc_type, field in field_map.items() if doc_type in documents}
-        vals = {doc_type: documents[doc_type].get(field, EMPTY) for doc_type, field in applicable.items()}
+        vals = {doc_type: get_document_field(documents[doc_type], field) for doc_type, field in applicable.items()}
         append(group, label, vals, kind, bool(applicable))
 
     # Kiểm tra tính hợp lý nội bộ: không suy đoán số liệu từ trường khác.
@@ -4733,7 +4820,7 @@ def build_customs_data(documents):
             doc = documents.get(dt, {})
             if not isinstance(doc, dict):
                 continue
-            v = doc.get(field, EMPTY)
+            v = get_document_field(doc, field)
             if v not in [None, "", EMPTY]:
                 return v, dt
         return EMPTY, EMPTY
@@ -4850,9 +4937,6 @@ if uploaded_files:
                     f"Hệ thống OCR tối đa {MAX_OCR_PAGES} trang đầu để tránh quá tải."
                 )
 
-            st.write(f"**Số trang:** {page_count}")
-            st.write(f"**Phương pháp đọc:** {method}")
-
             full_text = "\n".join(pages)
 
             if not full_text.strip():
@@ -4863,19 +4947,48 @@ if uploaded_files:
                 continue
 
             # ----------------------------------------
-            # Detect type
+            # Detect type and extract from native/OCR text
             # ----------------------------------------
             try:
-                document_type, scores = detect_document_type(
+                document_type, scores, extracted = analyze_document_text(
                     full_text,
                     file.name
                 )
             except Exception as e:
                 st.error(
-                    f"Lỗi nhận diện loại chứng từ: {type(e).__name__}: {e}"
+                    f"Lỗi nhận diện hoặc trích xuất: {type(e).__name__}: {e}"
                 )
                 continue
 
+            if should_try_ocr_fallback(method, document_type, extracted):
+                with st.spinner("Text PDF chưa đủ dữ liệu, đang thử OCR dự phòng..."):
+                    ocr_text = "\n".join(ocr_pdf(file_bytes))
+
+                if ocr_text.strip():
+                    try:
+                        ocr_type, ocr_scores, ocr_extracted = analyze_document_text(
+                            ocr_text,
+                            file.name
+                        )
+                    except Exception as e:
+                        st.warning(f"OCR dự phòng không thể phân tích: {type(e).__name__}: {e}")
+                    else:
+                        if is_better_extraction(
+                            ocr_type,
+                            ocr_scores,
+                            ocr_extracted,
+                            document_type,
+                            scores,
+                            extracted
+                        ):
+                            full_text = ocr_text
+                            document_type = ocr_type
+                            scores = ocr_scores
+                            extracted = ocr_extracted
+                            method = "PDF TEXT + OCR FALLBACK"
+
+            st.write(f"**Số trang:** {page_count}")
+            st.write(f"**Phương pháp đọc:** {method}")
             st.write(f"### Loại chứng từ: {document_type}")
 
             score_df = pd.DataFrame(
@@ -4897,20 +5010,6 @@ if uploaded_files:
                     use_container_width=True,
                     hide_index=True
                 )
-
-            # ----------------------------------------
-            # Extract
-            # ----------------------------------------
-            try:
-                extracted = extract_document(
-                    document_type,
-                    full_text
-                )
-            except Exception as e:
-                st.error(
-                    f"Lỗi trích xuất dữ liệu: {type(e).__name__}: {e}"
-                )
-                continue
 
             if not isinstance(extracted, dict):
                 st.error("Bộ trích xuất trả về dữ liệu không hợp lệ.")
