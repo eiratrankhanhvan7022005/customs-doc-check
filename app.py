@@ -4660,6 +4660,81 @@ if "knowledge_seeded" not in st.session_state:
     st.session_state["knowledge_seeded"] = True
 
 
+def create_excel_report(documents):
+    """Xuất dữ liệu trích xuất, đối chiếu và hỗ trợ khai báo ra Excel."""
+    from io import BytesIO
+
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        # Sheet 1: Dữ liệu trích xuất từ từng chứng từ
+        extracted_rows = []
+
+        for doc_type, doc_data in documents.items():
+            if not isinstance(doc_data, dict):
+                continue
+
+            fields = doc_data.get("fields", doc_data)
+
+            if not isinstance(fields, dict):
+                continue
+
+            for field_name, value in fields.items():
+                extracted_rows.append({
+                    "Loại chứng từ": doc_type,
+                    "Trường dữ liệu": field_name,
+                    "Giá trị trích xuất": str(value)
+                })
+
+        pd.DataFrame(
+            extracted_rows,
+            columns=["Loại chứng từ", "Trường dữ liệu", "Giá trị trích xuất"]
+        ).to_excel(writer, sheet_name="Du lieu trich xuat", index=False)
+
+        # Sheet 2: Kết quả đối chiếu chứng từ
+        cross_df = cross_check_documents(documents)
+
+        if not isinstance(cross_df, pd.DataFrame):
+            cross_df = pd.DataFrame()
+
+        cross_df.to_excel(
+            writer,
+            sheet_name="Doi chieu chung tu",
+            index=False
+        )
+
+        # Sheet 3: Dữ liệu hỗ trợ khai báo
+        customs_df = build_customs_data(documents)
+
+        if not isinstance(customs_df, pd.DataFrame):
+            customs_df = pd.DataFrame()
+
+        customs_df.to_excel(
+            writer,
+            sheet_name="Ho tro khai bao",
+            index=False
+        )
+
+        # Định dạng tiêu đề và độ rộng cột
+        for ws in writer.book.worksheets:
+            ws.freeze_panes = "A2"
+            ws.auto_filter.ref = ws.dimensions
+
+            for cell in ws[1]:
+                cell.font = cell.font.copy(bold=True)
+
+            for column_cells in ws.columns:
+                max_length = max(
+                    len(str(cell.value or ""))
+                    for cell in column_cells
+                )
+                ws.column_dimensions[
+                    column_cells[0].column_letter
+                ].width = min(max_length + 2, 45)
+
+    output.seek(0)
+    return output.getvalue()
+
 # =========================================================
 # 20. STREAMLIT UI
 # =========================================================
@@ -5026,6 +5101,31 @@ if documents:
         "và cần người khai kiểm tra/bổ sung."
     )
 
+
+
+# =========================================================
+# 22.1. EXPORT EXCEL
+# =========================================================
+
+excel_data = create_excel_report(documents)
+
+st.download_button(
+    label="📥 Xuất kết quả ra Excel",
+    data=excel_data,
+    file_name="Customs_Document_Check.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    key="download_excel_report"
+)
+
+# =========================================================
+# 23. FOOTER
+# =========================================================
+
+st.divider()
+
+st.caption(
+    "Customs Document Check – Prototype phục vụ nghiên cứu kiểm soát chứng từ."
+)
 
 # =========================================================
 # 23. FOOTER
