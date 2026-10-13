@@ -32,10 +32,6 @@ def get_supabase():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
 
-    st.sidebar.write(
-        "Supabase key type:",
-        key[:15]
-    )
 
     return create_client(url, key)
 
@@ -1410,36 +1406,34 @@ def ocr_image(image):
 # =========================================================
 
 @st.cache_data(show_spinner=False, max_entries=32)
-def ocr_pdf(file_bytes):
+def ocr_pdf(file_bytes, first_page=1, last_page=None):
     """
-    Chỉ được gọi khi PDF không có text layer đủ dùng.
-
-    OCR tối đa 30 trang và DPI 200 để giảm CPU/RAM.
+    OCR các trang được chỉ định. Nếu không chỉ định last_page,
+    OCR tối đa MAX_OCR_PAGES trang đầu.
     """
-
     try:
-
+        reader = PdfReader(BytesIO(file_bytes))
+        total_pages = len(reader.pages)
+        if total_pages == 0:
+            return []
+        first = max(1, int(first_page or 1))
+        last = min(int(last_page or MAX_OCR_PAGES), total_pages, MAX_OCR_PAGES)
+        if first > last:
+            return []
         images = convert_from_bytes(
             file_bytes,
             dpi=OCR_DPI,
             fmt="png",
             thread_count=1,
-            first_page=1,
-            last_page=MAX_OCR_PAGES
+            first_page=first,
+            last_page=last
         )
-
     except Exception:
-
         return []
 
     results = []
-
     for image in images:
-
-        text = ocr_image(image)
-
-        results.append(text)
-
+        results.append(ocr_image(image))
     return results
 
 
@@ -1448,23 +1442,10 @@ def ocr_pdf(file_bytes):
 # =========================================================
 
 def has_enough_text(text):
-    """
-    Xác định PDF có text layer đủ để dùng hay không.
-
-    80 ký tự chỉ là ngưỡng kỹ thuật.
-    Không dùng OCR nếu PDF đã có text tương đối đầy đủ.
-    """
-
+    """Ngưỡng kỹ thuật theo từng trang; không khẳng định chất lượng OCR."""
     if not text:
-
         return False
-
-    compact = re.sub(
-        r"\s+",
-        "",
-        text
-    )
-
+    compact = re.sub(r"\\s+", "", text)
     return len(compact) >= 80
 
 
@@ -1473,140 +1454,68 @@ def has_enough_text(text):
 # =========================================================
 
 def merge_page_text(native_text, ocr_text):
+    native_text = normalize_text(native_text or "")
+    ocr_text = normalize_text(ocr_text or "")
 
-    native_text = normalize_text(
-        native_text or ""
-    )
-
-    ocr_text = normalize_text(
-        ocr_text or ""
-    )
-
-    if native_text and ocr_text:
-
-        return (
-            native_text
-            + "\n"
-            + ocr_text
-        )
-
-    if native_text:
-
+    # Tránh nối hai bản chép của cùng trang vì dễ gây trùng/ghép sai dữ liệu.
+    if has_enough_text(native_text):
         return native_text
-
-    return ocr_text
+    if ocr_text:
+        return ocr_text
+    return native_text
 
 
 # =========================================================
-# 3.7 PROCESS PDF - HYBRID
+# 3.7 PROCESS PDF - HYBRID THEO TỪNG TRANG
 # =========================================================
 
 def process_pdf(file_bytes):
+    """
+    Đọc text layer theo từng trang. Trang nào có text layer yếu mới OCR,
+    nên PDF hỗn hợp (một số trang text, một số trang scan) không bị bỏ sót.
+    """
+    native_pages, page_count, native_error = read_pdf_text(file_bytes)
 
-    # -----------------------------------------------------
-    # BƯỚC 1: ĐỌC TEXT LAYER
-    # -----------------------------------------------------
-
-    native_pages, page_count, native_error = read_pdf_text(
-        file_bytes
-    )
-
-    native_text = "\n".join(
-        native_pages
-    )
-
-    # -----------------------------------------------------
-    # BƯỚC 2: PDF CÓ TEXT ĐỦ DÙNG
-    # -----------------------------------------------------
-
-    if has_enough_text(native_text):
-
-        return (
-            native_pages,
-            page_count,
-            "PDF TEXT",
-            None
-        )
-
-    # -----------------------------------------------------
-    # BƯỚC 3: PDF SCAN -> OCR
-    # -----------------------------------------------------
-
-    ocr_pages = ocr_pdf(
-        file_bytes
-    )
-
-    if not ocr_pages:
-
-        # Nếu OCR lỗi nhưng vẫn có text layer
-        if native_pages:
-
-            return (
-                native_pages,
-                page_count,
-                "PDF TEXT",
-                None
+    if not native_pages and page_count == 0:
+        ocr_pages = ocr_pdf(file_bytes, 1, MAX_OCR_PAGES)
+        if not ocr_pages:
+            return [], page_count, "ERROR", native_error or (
+                "Không đọc được PDF và OCR không trả kết quả."
             )
+        return ocr_pages, page_count, "OCR", None
 
-        return (
-            [],
-            page_count,
-            "ERROR",
-            native_error or
-            "Không đọc được PDF và OCR không trả kết quả."
+    pages_to_ocr = [
+        i for i, page in enumerate(native_pages[:MAX_OCR_PAGES])
+        if not has_enough_text(page)
+    ]
+
+    if not pages_to_ocr:
+        return [normalize_text(p or "") for p in native_pages], page_count, "PDF TEXT", None
+
+    final_pages = [normalize_text(p or "") for p in native_pages]
+    ocr_success = False
+
+    # OCR riêng từng trang yếu để giữ đúng thứ tự trang và không OCR lại trang tốt.
+    for page_index in pages_to_ocr:
+        ocr_result = ocr_pdf(file_bytes, page_index + 1, page_index + 1)
+        ocr_text = ocr_result[0] if ocr_result else ""
+        if ocr_text.strip():
+            ocr_success = True
+        final_pages[page_index] = merge_page_text(
+            native_pages[page_index] if page_index < len(native_pages) else "",
+            ocr_text
         )
 
-    # -----------------------------------------------------
-    # BƯỚC 4: MERGE TEXT
-    # -----------------------------------------------------
-
-    merged_pages = []
-
-    max_pages = min(
-        max(
-            len(native_pages),
-            len(ocr_pages)
-        ),
-        MAX_OCR_PAGES
-    )
-
-    for i in range(max_pages):
-
-        native = (
-            native_pages[i]
-            if i < len(native_pages)
-            else ""
+    method = "PDF TEXT + OCR" if any(
+        has_enough_text(p) for p in native_pages
+    ) else "OCR"
+    if not ocr_success and not any(p.strip() for p in final_pages):
+        return [], page_count, "ERROR", native_error or (
+            "Không đọc được văn bản từ PDF và OCR không trả kết quả."
         )
 
-        ocr = (
-            ocr_pages[i]
-            if i < len(ocr_pages)
-            else ""
-        )
+    return final_pages, page_count, method, None
 
-        # Nếu trang đã có text đủ rõ:
-        # dùng text gốc, không lấy OCR.
-        if has_enough_text(native):
-
-            merged_pages.append(
-                normalize_text(native)
-            )
-
-        else:
-
-            merged_pages.append(
-                merge_page_text(
-                    native,
-                    ocr
-                )
-            )
-
-    return (
-        merged_pages,
-        page_count,
-        "OCR",
-        None
-    )
 
 # =========================================================
 # 4. GENERIC REGEX
@@ -2591,7 +2500,7 @@ def _value_valid_for_field(field, value):
         # recognized prefix. Plain prose such as "date." must never qualify.
         return (bool(re.search(r"\d", v)) and len(v) >= 5 and len(v) <= 40
                 and not re.fullmatch(r"[A-Za-z]+", v)
-                and not re.search(r"(?:date|english|copy|same|value|goods|before)", v, re.I))
+                and not re.search(r"\b(?:date|english|copy|same|value|goods|before)\b", v, re.I))
     if field in {"EXPORTER", "IMPORTER", "CONSIGNEE", "NOTIFY_PARTY"}:
         bad = ["DATE", "QUANTITY", "PRICE", "AMOUNT", "PAYMENT", "SHIPMENT", "DELIVERY", "COPY", "ENGLISH IN TWO"]
         return len(v) >= 2 and not any(x in _norm_semantic(v) for x in bad)
@@ -2993,10 +2902,6 @@ def extract_universal_fields(text, document_type=None):
 
     return result
 
-
-def extract_document(document_type, text):
-    """All document types use the same semantic engine; legacy parsers are fallback helpers only."""
-    return extract_universal_fields(text, document_type)
 
 # =========================================================
 # 13. COMMERCIAL INVOICE - LEGACY FALLBACK PARSER
