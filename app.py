@@ -5117,15 +5117,7 @@ st.download_button(
     key="download_excel_report"
 )
 
-# =========================================================
-# 23. FOOTER
-# =========================================================
 
-st.divider()
-
-st.caption(
-    "Customs Document Check – Prototype phục vụ nghiên cứu kiểm soát chứng từ."
-)
 
 # =========================================================
 # 23. FOOTER
